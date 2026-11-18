@@ -410,6 +410,11 @@ describe('plannerReducer', () => {
       expect(s.activePersonId).toBe('p2')
     })
 
+    it('leaves company-day mode, since the new person is now selected', () => {
+      const s = plannerReducer({ ...base, companies: [{ id: 'co1', name: 'Acme', days: [] }], editingCompanyId: 'co1' }, { type: 'addPerson', id: 'p2', name: 'Bob' })
+      expect(s.editingCompanyId).toBeNull()
+    })
+
     it('picks the next unused colour when none or an invalid one is given', () => {
       let s = plannerReducer(base, { type: 'addPerson', id: 'p2', name: 'Bob' })
       expect(s.people[1].colour).toBe(PERSON_COLOURS[1])

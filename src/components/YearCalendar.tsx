@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent, type PointerEvent } from 'react'
-import { WEEKDAY_INITIALS_MON_FIRST, eachDay } from '../domain/dates'
-import type { LeavePortion } from '../domain/types'
+import { WEEKDAY_INITIALS_MON_FIRST, dayOfWeek, eachDay } from '../domain/dates'
+import type { Company, CompanyDay, LeavePortion } from '../domain/types'
 import { nextPortion } from '../state/plannerState'
 import type { DayCell, MonthView, PersonLeave, YearView } from '../domain/calendar'
 import { bridgeSummary, type Bridge } from '../domain/bridges'
 import { halfDayTint, legendItems, textOn } from '../theme'
+import { CompanyDayPopover, type CompanyDayChoice } from './CompanyDayPopover'
 
 interface Props {
   view: YearView
@@ -14,12 +15,36 @@ interface Props {
   bridgeByDate?: ReadonlyMap<string, Bridge>
   onToggleDay: (date: string) => void
   onSetRange: (start: string, end: string, portion: LeavePortion | undefined) => void
+  /** Set while editing a company's days: clicks and drags open the company-day popover instead of booking leave. */
+  company?: Company | null
+  /** The editing company's days by date (repeating days included). */
+  companyDayAt?: (date: string) => CompanyDay | undefined
+  onAssignCompanyDays?: (companyId: string, dates: string[], choice: CompanyDayChoice) => void
+  onRemoveCompanyDays?: (companyId: string, dates: string[]) => void
 }
 
 const dateAt = (x: number, y: number): string | null =>
   document.elementFromPoint(x, y)?.closest<HTMLElement>('[data-date]')?.dataset.date ?? null
 
-export function YearCalendar({ view, activeColour, bridgeByDate, onToggleDay, onSetRange }: Props) {
+const dayButton = (date: string) => document.querySelector<HTMLElement>(`button[data-date="${date}"]`)
+
+export function YearCalendar({
+  view,
+  activeColour,
+  bridgeByDate,
+  onToggleDay,
+  onSetRange,
+  company = null,
+  companyDayAt,
+  onAssignCompanyDays,
+  onRemoveCompanyDays,
+}: Props) {
+  const companyMode = company !== null
+  const [openPopover, setPopover] = useState<{ dates: string[]; anchorDate: string; companyId: string } | null>(null)
+  // Leaving company mode (or switching company) closes the popover.
+  const popover = openPopover && openPopover.companyId === company?.id ? openPopover : null
+  const popoverAnchor = popover ? dayButton(popover.anchorDate) : null
+
   const cells = useMemo(() => {
     const map = new Map<string, DayCell>()
     for (const m of view.months) for (const w of m.weeks) for (const c of w) if (c) map.set(c.date, c)
@@ -28,15 +53,33 @@ export function YearCalendar({ view, activeColour, bridgeByDate, onToggleDay, on
   const isBookable = useCallback(
     (d: string) => {
       const c = cells.get(d)
-      return !!c && c.inRange && c.kind === 'working'
+      if (!c || !c.inRange) return false
+      return companyMode || c.kind === 'working'
     },
-    [cells],
+    [cells, companyMode],
+  )
+  /** What a drag or shift-click covers: leave skips non-working days; company days also skip weekends and bank holidays. */
+  const datesBetween = useCallback(
+    (a: string, b: string) => {
+      const [from, to] = a <= b ? [a, b] : [b, a]
+      return eachDay(from, to).filter((d) => {
+        if (!isBookable(d)) return false
+        if (!companyMode) return true
+        const dow = dayOfWeek(d)
+        return dow !== 0 && dow !== 6 && !cells.get(d)?.holidayName
+      })
+    },
+    [cells, isBookable, companyMode],
   )
 
   // Latest callback for the window-level drag listeners.
   const onSetRangeRef = useRef(onSetRange)
+  const companyRangeRef = useRef((_dates: string[], _anchorDate: string) => {})
   useEffect(() => {
     onSetRangeRef.current = onSetRange
+    companyRangeRef.current = (dates, anchorDate) => {
+      if (dates.length > 0 && company) setPopover({ dates, anchorDate, companyId: company.id })
+    }
   })
 
   const anchor = useRef<string | null>(null)
@@ -48,16 +91,15 @@ export function YearCalendar({ view, activeColour, bridgeByDate, onToggleDay, on
 
   const selecting = useMemo(() => {
     if (!drag) return null
-    const [a, b] = drag.start <= drag.end ? [drag.start, drag.end] : [drag.end, drag.start]
-    return new Set(eachDay(a, b).filter(isBookable))
-  }, [drag, isBookable])
+    return new Set(datesBetween(drag.start, drag.end))
+  }, [drag, datesBetween])
 
   function onPointerDown(e: PointerEvent<HTMLDivElement>) {
     if (e.button !== 0 || e.shiftKey || !e.isPrimary) return
     const start = (e.target as HTMLElement).closest<HTMLElement>('[data-date]')?.dataset.date
     if (!start || !isBookable(start)) return
     // Target for the whole drag: what a click on the first day would do.
-    const portion = nextPortion(cells.get(start)?.leave ?? undefined)
+    const portion = companyMode ? undefined : nextPortion(cells.get(start)?.leave ?? undefined)
     dragRef.current = { start, end: start }
 
     const move = (ev: globalThis.PointerEvent) => {
@@ -81,7 +123,8 @@ export function YearCalendar({ view, activeColour, bridgeByDate, onToggleDay, on
       const final = dragRef.current
       stop()
       if (!final || final.start === final.end) return // a plain click; onClick handles it
-      onSetRangeRef.current(final.start, final.end, portion)
+      if (companyMode) companyRangeRef.current(datesBetween(final.start, final.end), final.end)
+      else onSetRangeRef.current(final.start, final.end, portion)
       anchor.current = final.start
       // Swallow the click the browser may still fire on the same element.
       suppressClick.current = true
@@ -95,11 +138,21 @@ export function YearCalendar({ view, activeColour, bridgeByDate, onToggleDay, on
     cleanup.current = stop
   }
 
+  /** Close the popover and put focus back on the day it came from. */
+  function closePopover() {
+    const date = popover?.anchorDate
+    setPopover(null)
+    if (date) dayButton(date)?.focus()
+  }
+
   function onDayClick(e: MouseEvent<HTMLDivElement>) {
     const date = (e.target as HTMLElement).closest<HTMLElement>('[data-date]')?.dataset.date
     if (!date || !isBookable(date) || suppressClick.current) return
     const from = anchor.current
-    if (e.shiftKey && from && from !== date && isBookable(from)) {
+    if (company) {
+      const dates = e.shiftKey && from && from !== date && isBookable(from) ? datesBetween(from, date) : [date]
+      setPopover(dates.length > 0 ? { dates, anchorDate: date, companyId: company.id } : null)
+    } else if (e.shiftKey && from && from !== date && isBookable(from)) {
       // The anchor was just booked/cleared by its own click or drag, so the range
       // copies the anchor's current state (full, half or cleared).
       onSetRange(from, date, cells.get(from)?.leave ?? undefined)
@@ -117,8 +170,27 @@ export function YearCalendar({ view, activeColour, bridgeByDate, onToggleDay, on
       onClick={onDayClick}
     >
       {view.months.map((m) => (
-        <Month key={`${m.year}-${m.month}`} month={m} selecting={selecting} bridgeByDate={bridgeByDate} />
+        <Month key={`${m.year}-${m.month}`} month={m} selecting={selecting} bridgeByDate={bridgeByDate} companyMode={companyMode} />
       ))}
+      {company && popover && popoverAnchor && (
+        <CompanyDayPopover
+          // A new selection starts with fresh fields.
+          key={popover.dates.join()}
+          dates={popover.dates}
+          companyName={company.name}
+          existing={popover.dates.flatMap((d) => companyDayAt?.(d) ?? [])}
+          anchor={popoverAnchor}
+          onClose={closePopover}
+          onAssign={(choice) => {
+            onAssignCompanyDays?.(company.id, popover.dates, choice)
+            closePopover()
+          }}
+          onDelete={() => {
+            onRemoveCompanyDays?.(company.id, popover.dates)
+            closePopover()
+          }}
+        />
+      )}
     </div>
   )
 }
@@ -127,10 +199,12 @@ function Month({
   month,
   selecting,
   bridgeByDate,
+  companyMode,
 }: {
   month: MonthView
   selecting: Set<string> | null
   bridgeByDate?: ReadonlyMap<string, Bridge>
+  companyMode: boolean
 }) {
   return (
     <section className="month" aria-label={month.label}>
@@ -147,7 +221,7 @@ function Month({
           <div role="row" key={w} className="week">
             {week.map((cell, d) =>
               cell ? (
-                <Day key={cell.date} cell={cell} selecting={!!selecting?.has(cell.date)} bridge={bridgeByDate?.get(cell.date)} />
+                <Day key={cell.date} cell={cell} selecting={!!selecting?.has(cell.date)} bridge={bridgeByDate?.get(cell.date)} companyMode={companyMode} />
               ) : (
                 <span key={d} role="gridcell" className="day day--empty" />
               ),
@@ -159,8 +233,8 @@ function Month({
   )
 }
 
-function Day({ cell, selecting, bridge }: { cell: DayCell; selecting: boolean; bridge?: Bridge }) {
-  const bookable = cell.inRange && cell.kind === 'working'
+function Day({ cell, selecting, bridge, companyMode }: { cell: DayCell; selecting: boolean; bridge?: Bridge; companyMode: boolean }) {
+  const bookable = cell.inRange && (companyMode || cell.kind === 'working')
   const classes = [
     'day',
     `day--${cell.kind}`,
@@ -192,7 +266,7 @@ function Day({ cell, selecting, bridge }: { cell: DayCell; selecting: boolean; b
       disabled={!bookable}
       title={description || undefined}
       aria-label={`${cell.date}${description ? ` – ${description}` : ''}`}
-      aria-pressed={bookable ? cell.leave !== null : undefined}
+      aria-pressed={bookable ? (companyMode ? cell.companyDay !== null : cell.leave !== null) : undefined}
       data-date={cell.date}
     >
       {cell.people.length > 0 && <LeaveLayer people={cell.people} />}

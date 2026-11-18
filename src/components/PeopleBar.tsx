@@ -8,6 +8,8 @@ const fmt = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(1))
 
 interface Props {
   people: PersonStatus[]
+  /** True while the calendar is editing a company's days, so no one is shown as selected. */
+  editing?: boolean
   dispatch: (action: PlannerAction) => void
 }
 
@@ -15,7 +17,7 @@ interface Props {
  * Chips for choosing whose leave the calendar edits, plus an inline form to
  * add someone. Shown even for one person so the feature is discoverable.
  */
-export function PeopleBar({ people, dispatch }: Props) {
+export function PeopleBar({ people, editing = false, dispatch }: Props) {
   const [adding, setAdding] = useState(false)
   const [name, setName] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
@@ -64,7 +66,7 @@ export function PeopleBar({ people, dispatch }: Props) {
               <button
                 type="button"
                 className="person-chip"
-                aria-pressed={active}
+                aria-pressed={active && !editing}
                 style={{ '--person-colour': person.colour } as CSSProperties}
                 onClick={() => dispatch({ type: 'selectPerson', id: person.id })}
               >

@@ -191,7 +191,7 @@ export function plannerReducer(state: PlannerState, action: PlannerAction): Plan
         ? action.colour.toLowerCase()
         : nextPersonColour(state.people.map((p) => p.colour))
       const person: Person = { ...DEFAULT_PERSON_SETTINGS, id: action.id, name, colour, leave: {}, companyId: null }
-      return { ...state, people: [...state.people, person], activePersonId: person.id }
+      return { ...state, people: [...state.people, person], activePersonId: person.id, editingCompanyId: null }
     }
     case 'removePerson': {
       const index = state.people.findIndex((p) => p.id === action.id)

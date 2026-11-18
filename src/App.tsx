@@ -1,20 +1,22 @@
 import { useCallback, useState } from 'react'
+import { CompaniesBar } from './components/CompaniesBar'
 import { BridgeSuggestions } from './components/BridgeSuggestions'
 import { PeopleBar } from './components/PeopleBar'
 import { SettingsPanel } from './components/SettingsPanel'
 import { SummaryBar } from './components/SummaryBar'
 import { UpdateBanner } from './components/UpdateBanner'
+import type { CompanyDayChoice } from './components/CompanyDayPopover'
+import { newId } from './components/newId'
 import { Legend, YearCalendar } from './components/YearCalendar'
 import type { Bridge } from './domain/bridges'
 import { REGIONS, type LeavePortion } from './domain/types'
 import { downloadCanvasAsPng } from './export/download'
 import { renderYearToCanvas } from './export/renderPng'
 import { useMediaQuery } from './hooks/useMediaQuery'
-import { companyOf } from './state/plannerState'
 import { usePlanner } from './state/usePlanner'
 
 export default function App() {
-  const { state, hadSavedState, dispatch, range, label, settings, activePerson, people, yearView, summary, bridges, bridgeByDate, overEntitlementWarning, hasBankHolidayData } = usePlanner()
+  const { state, hadSavedState, dispatch, range, label, settings, activePerson, people, companies, editingCompany, editingCompanyIndex, yearView, summary, bridges, bridgeByDate, overEntitlementWarning, hasBankHolidayData } = usePlanner()
   // Same breakpoint as the single-column layout in styles.css.
   const smallScreen = useMediaQuery('(max-width: 860px)')
   const [exporting, setExporting] = useState(false)
@@ -30,6 +32,18 @@ export default function App() {
     (b: Bridge) => dispatch({ type: 'setLeaveRange', start: b.start, end: b.end, portion: 'full' }),
     [dispatch],
   )
+
+  const companyMode = editingCompany !== null
+  const assignCompanyDays = useCallback(
+    (companyId: string, dates: string[], choice: CompanyDayChoice) =>
+      dispatch({ type: 'assignCompanyDays', companyId, dates, ...choice, idPrefix: newId('cd') }),
+    [dispatch],
+  )
+  const removeCompanyDays = useCallback(
+    (companyId: string, dates: string[]) => dispatch({ type: 'removeCompanyDays', companyId, dates }),
+    [dispatch],
+  )
+  const companyDayAt = useCallback((date: string) => editingCompanyIndex.get(date), [editingCompanyIndex])
 
   const regionLabel = REGIONS.find((r) => r.id === settings.region)?.label ?? ''
 
@@ -57,12 +71,16 @@ export default function App() {
       <UpdateBanner />
       <header className="app-header">
         <h1>Annual Leave Planner</h1>
-        <p className="tagline">Leave is booked for the person selected below. Click or tap a working day to book leave, again for a half day, and again to clear. Shift-click or drag (swipe sideways on touch screens) to book or clear a range.</p>
+        <p className="tagline">
+          {editingCompany
+            ? `Editing company days for ${editingCompany.name}. Click or tap a day to add, change or delete a company day. Shift-click or drag to pick a range; weekends and bank holidays are skipped.`
+            : 'Leave is booked for the person selected below. Click or tap a working day to book leave, again for a half day, and again to clear. Shift-click or drag (swipe sideways on touch screens) to book or clear a range.'}
+        </p>
       </header>
 
       <div className="layout">
         <aside>
-          <SettingsPanel collapsible={smallScreen} defaultCollapsed={hadSavedState} settings={settings} activePerson={activePerson} peopleCount={people.length} company={companyOf(state.companies, activePerson)} dispatch={dispatch} />
+          <SettingsPanel collapsible={smallScreen} defaultCollapsed={hadSavedState} settings={settings} activePerson={activePerson} peopleCount={people.length} companies={companies} dispatch={dispatch} />
         </aside>
 
         <main className="panel">
@@ -99,7 +117,9 @@ export default function App() {
             </div>
           </div>
 
-          <PeopleBar people={people} dispatch={dispatch} />
+          <PeopleBar people={people} editing={companyMode} dispatch={dispatch} />
+
+          <CompaniesBar companies={companies} editingCompanyId={state.editingCompanyId} range={range} dispatch={dispatch} />
 
           <SummaryBar summary={summary} warning={overEntitlementWarning} />
 
@@ -109,10 +129,20 @@ export default function App() {
             </p>
           )}
 
-          <BridgeSuggestions bridges={bridges} onBook={bookBridge} />
+          <BridgeSuggestions bridges={companyMode ? [] : bridges} onBook={bookBridge} />
 
-          <YearCalendar view={yearView} activeColour={activePerson.colour} bridgeByDate={bridgeByDate} onToggleDay={toggleDay} onSetRange={setRange} />
-          <Legend people={people.map((p) => ({ id: p.person.id, name: p.person.name, colour: p.person.colour }))} activeColour={activePerson.colour} showBridge={bridges.length > 0} />
+          <YearCalendar
+            view={yearView}
+            activeColour={companyMode ? 'var(--c-companyDay)' : activePerson.colour}
+            bridgeByDate={companyMode ? undefined : bridgeByDate}
+            onToggleDay={toggleDay}
+            onSetRange={setRange}
+            company={editingCompany}
+            companyDayAt={companyDayAt}
+            onAssignCompanyDays={assignCompanyDays}
+            onRemoveCompanyDays={removeCompanyDays}
+          />
+          <Legend people={people.map((p) => ({ id: p.person.id, name: p.person.name, colour: p.person.colour }))} activeColour={activePerson.colour} showBridge={!companyMode && bridges.length > 0} />
         </main>
       </div>
     </div>

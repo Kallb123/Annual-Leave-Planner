@@ -1,4 +1,4 @@
-import { isIsoDate, type IsoDate } from './dates'
+import { MONTH_NAMES, dayOfWeek, eachDay, isIsoDate, parseIso, type IsoDate } from './dates'
 import { COMPANY_DAY_NAME_MAX, type CompanyDay } from './types'
 
 /**
@@ -78,4 +78,24 @@ export function sanitiseCompanyDays(value: unknown): CompanyDay[] {
     if (out.length >= MAX_COMPANY_DAYS) break
   }
   return out.sort((a, b) => a.date.localeCompare(b.date))
+}
+
+/** Number of dates from `start` to `end` (inclusive) that are company days, counting repeats. */
+export function countCompanyDays(days: readonly CompanyDay[], start: IsoDate, end: IsoDate): number {
+  const index = companyDayIndex(days)
+  return eachDay(start, end).filter((d) => index.get(d)).length
+}
+
+const WEEKDAY_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+const shortDate = (date: IsoDate) => {
+  const { day, month } = parseIso(date)
+  return `${day} ${MONTH_NAMES[month - 1].slice(0, 3)}`
+}
+
+/** "Wed 24 Dec 2026" for one date, "24 Dec – 2 Jan · 6 days" for several (sorted). */
+export function describeSelection(dates: readonly IsoDate[]): string {
+  if (dates.length === 0) return ''
+  const first = dates[0]
+  if (dates.length === 1) return `${WEEKDAY_SHORT[dayOfWeek(first)]} ${shortDate(first)} ${parseIso(first).year}`
+  return `${shortDate(first)} – ${shortDate(dates[dates.length - 1])} · ${dates.length} days`
 }
