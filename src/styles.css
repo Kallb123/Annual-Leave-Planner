@@ -1013,3 +1013,127 @@ button.day:not(:disabled) {
 .colour-custom:not(.colour-custom--active)::-moz-color-swatch {
   opacity: 0;
 }
+
+/* --- Companies bar & company-day popover ------------------------------------ */
+
+.companies {
+  margin: 0 0 16px;
+}
+
+.companies .people-bar {
+  margin-bottom: 0;
+}
+
+.company-chip {
+  --person-colour: var(--c-companyDay);
+}
+
+.company-hint {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+  margin-top: 8px;
+  padding: 8px 12px;
+  border: 1px solid var(--c-companyDay);
+  border-radius: 8px;
+  background: var(--c-background);
+}
+
+.field-hint {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--c-textMuted);
+}
+
+.company-block {
+  display: grid;
+  gap: 8px;
+  padding-top: 12px;
+}
+
+.company-block-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.company-block-head input {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.company-block-head .remove-person {
+  flex: none;
+}
+
+.company-popover {
+  position: fixed;
+  z-index: 20;
+  width: min(320px, calc(100vw - 16px));
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius);
+  background: var(--c-background);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+}
+
+.company-popover-title {
+  margin: 0;
+  display: grid;
+  gap: 2px;
+  font-size: 0.95rem;
+}
+
+.company-popover-company {
+  font-size: 0.8rem;
+  font-weight: 400;
+  color: var(--c-textMuted);
+  overflow-wrap: anywhere;
+}
+
+.company-popover-actions {
+  display: grid;
+  gap: 8px;
+}
+
+.company-popover-actions .link {
+  justify-self: center;
+}
+
+.danger {
+  color: var(--c-warn);
+  border-color: var(--c-warn);
+}
+
+@media (pointer: coarse) {
+  .company-popover input[type='text'],
+  .company-block-head input {
+    min-height: 44px;
+  }
+
+  .company-popover-actions button {
+    min-height: 44px;
+  }
+}
+
+/* Phones: a bottom sheet instead of a floating card. */
+@media (max-width: 600px) {
+  .company-popover {
+    left: 0 !important;
+    right: 0;
+    top: auto !important;
+    bottom: 0;
+    width: auto;
+    border-radius: var(--radius) var(--radius) 0 0;
+    padding-bottom: calc(14px + env(safe-area-inset-bottom));
+    opacity: 1 !important;
+  }
+
+  .company-hint .secondary {
+    min-height: 44px;
+  }
+}

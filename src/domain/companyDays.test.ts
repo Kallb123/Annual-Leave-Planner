@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { companyDayIndex, sanitiseCompanyDay, sanitiseCompanyDays, validateCompanyDayInput } from './companyDays'
+import { companyDayIndex, countCompanyDays, describeSelection, sanitiseCompanyDay, sanitiseCompanyDays, validateCompanyDayInput } from './companyDays'
 import type { CompanyDay } from './types'
 
 const day = (over: Partial<CompanyDay> = {}): CompanyDay => ({
@@ -80,5 +80,32 @@ describe('sanitiseCompanyDays', () => {
   it('returns an empty list for non-arrays', () => {
     expect(sanitiseCompanyDays(undefined)).toEqual([])
     expect(sanitiseCompanyDays({})).toEqual([])
+  })
+})
+
+describe('countCompanyDays', () => {
+  it('counts exact and repeating days inside the range', () => {
+    const days = [
+      day({ id: 'a', date: '2026-12-29' }),
+      day({ id: 'b', date: '2020-12-25', repeatsAnnually: true }),
+      day({ id: 'c', date: '2027-06-01' }),
+    ]
+    expect(countCompanyDays(days, '2026-04-01', '2027-03-31')).toBe(2)
+    expect(countCompanyDays(days, '2027-04-01', '2028-03-31')).toBe(2)
+    expect(countCompanyDays([], '2026-04-01', '2027-03-31')).toBe(0)
+  })
+})
+
+describe('describeSelection', () => {
+  it('describes one date with its weekday and year', () => {
+    expect(describeSelection(['2026-12-24'])).toBe('Thu 24 Dec 2026')
+  })
+
+  it('describes a range with its length', () => {
+    expect(describeSelection(['2026-12-24', '2026-12-29', '2027-01-02'])).toBe('24 Dec – 2 Jan · 3 days')
+  })
+
+  it('is empty for no dates', () => {
+    expect(describeSelection([])).toBe('')
   })
 })

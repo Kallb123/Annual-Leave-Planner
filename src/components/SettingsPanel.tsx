@@ -1,9 +1,9 @@
 import { useState } from 'react'
-import { CompanyDaysSection } from './CompanyDaysSection'
+import { CompaniesSection } from './CompaniesSection'
 import { DayCountInput } from './DayCountInput'
 import { MONTH_NAMES, daysInMonth } from '../domain/dates'
-import { PERSON_NAME_MAX, REGIONS, type CompanyDay, type Person, type Region, type Settings } from '../domain/types'
-import type { PlannerAction } from '../state/plannerState'
+import { PERSON_NAME_MAX, REGIONS, type Company, type Person, type Region, type Settings } from '../domain/types'
+import { companyOf, type PlannerAction } from '../state/plannerState'
 import { PERSON_COLOURS } from '../theme'
 
 const COLOUR_NAMES: Record<string, string> = {
@@ -36,11 +36,11 @@ interface Props {
   settings: Settings
   activePerson: Person
   peopleCount: number
-  companyDays: CompanyDay[]
+  companies: Company[]
   dispatch: (action: PlannerAction) => void
 }
 
-export function SettingsPanel({ collapsible = false, defaultCollapsed = false, settings, activePerson, peopleCount, companyDays, dispatch }: Props) {
+export function SettingsPanel({ collapsible = false, defaultCollapsed = false, settings, activePerson, peopleCount, companies, dispatch }: Props) {
   const [collapsed, setCollapsed] = useState(defaultCollapsed)
   const hidden = collapsible && collapsed
   const regionLabel = REGIONS.find((r) => r.id === settings.region)?.label ?? ''
@@ -101,6 +101,21 @@ export function SettingsPanel({ collapsible = false, defaultCollapsed = false, s
                 }
               }}
             />
+          </label>
+
+          <label className="field">
+            <span>Company</span>
+            <select
+              value={companyOf(companies, activePerson)?.id ?? ''}
+              onChange={(e) => dispatch({ type: 'setPersonCompany', personId: activePerson.id, companyId: e.target.value || null })}
+            >
+              <option value="">No company</option>
+              {companies.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
           </label>
 
           <fieldset className="field">
@@ -245,7 +260,7 @@ export function SettingsPanel({ collapsible = false, defaultCollapsed = false, s
             <span>Suggest bridge days (short leave around bank holidays)</span>
           </label>
 
-          <CompanyDaysSection companyDays={companyDays} dispatch={dispatch} />
+          <CompaniesSection companies={companies} dispatch={dispatch} />
         </section>
       </div>
     </section>
