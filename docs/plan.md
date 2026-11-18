@@ -65,7 +65,7 @@ People with a fixed annual leave allowance want to see the whole leave year at a
 - [x] Custom "company days" (office closures, extra holidays)
 - [ ] Accessibility audit (keyboard grid navigation with arrow keys, screen reader pass)
 - [ ] Visual regression tests for the PNG renderer (Playwright screenshot comparison)
-- [ ] Installable PWA with offline support
+- [x] Installable PWA with offline support
 
 ## Open questions
 

@@ -12,7 +12,8 @@
     "typecheck": "tsc -b",
     "test": "vitest run",
     "test:watch": "vitest",
-    "update-bank-holidays": "node scripts/update-bank-holidays.mjs"
+    "update-bank-holidays": "node scripts/update-bank-holidays.mjs",
+    "generate-icons": "node scripts/generate-icons.mjs"
   },
   "dependencies": {
     "react": "^19.3.1",

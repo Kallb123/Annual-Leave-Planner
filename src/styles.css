@@ -255,6 +255,21 @@ select {
   margin: 0 0 16px;
 }
 
+/* --- Update banner (PWA) --------------------------------------------------- */
+
+.update-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  background: var(--c-background);
+  border: 1px solid var(--c-accent);
+  border-radius: 8px;
+  padding: 8px 12px;
+  margin: 0 0 16px;
+  font-weight: 600;
+}
+
 /* --- Calendar ------------------------------------------------------------ */
 
 .year {

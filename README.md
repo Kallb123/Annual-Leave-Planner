@@ -9,6 +9,7 @@ A small web app for planning annual leave across a leave year and downloading th
 - **Bridge suggestions.** Spots short runs of working days between bank holidays, company days and weekends, and shows how many days off in a row booking them would give (for example "Book 3 days, get 10 days off"). They get a dotted outline on the calendar and a list with a one-click Book button. Switch them off in the settings; they never appear in the PNG.
 - **Part-time friendly.** Choose which days of the week you work. Leave can only be booked on working days.
 - **Export.** Download the whole leave year, with leave, bank holidays and a summary, as a high-resolution PNG.
+- **Installable and offline.** It's a Progressive Web App: install it from your browser (or add it to your home screen on iOS) and it keeps working with no connection after the first visit. When a new version is deployed, an "Update available" banner offers a one-click reload.
 - **Private by default.** There's no backend and no account. Everything is stored in your browser's `localStorage`.
 
 ## Getting started
@@ -34,10 +35,11 @@ Then open http://localhost:5173.
 | `npm run lint` | Lint with oxlint |
 | `npm run typecheck` | Type-check only |
 | `npm run update-bank-holidays` | Refresh `src/data/bank-holidays.json` from GOV.UK |
+| `npm run generate-icons` | Re-render the PNG app icons from `scripts/icons/*.svg` (needs Playwright) |
 
 ## Deploying
 
-The app builds to static files in `dist/`, so it runs on any static host. Vercel and Cloudflare Pages work with no config files:
+The app builds to static files in `dist/`, so it runs on any static host. Vercel and Cloudflare Pages work with no extra setup. `vercel.json` and `public/_headers` set the cache headers that let updates through (see [docs/deployment.md](docs/deployment.md)):
 
 | | Vercel | Cloudflare Pages |
 | --- | --- | --- |
@@ -57,8 +59,10 @@ src/
   components/    React UI
   export/        Canvas PNG renderer and download helper
   data/          Bundled bank holiday snapshot (from GOV.UK)
+  pwa/           Service worker registration and update-available state
   theme.ts       Shared colour palette for the UI and the PNG
-scripts/         Build-time tooling (bank holiday refresh)
+vite-plugins/   Build plugin that writes the service worker (sw.js) with the precache list
+scripts/         Build-time tooling (bank holiday refresh, icon generation)
 docs/            Architecture, plan and deployment notes
 ```
 

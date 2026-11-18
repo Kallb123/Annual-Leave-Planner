@@ -14,7 +14,7 @@
 
 - **Vite + React + TypeScript** – fast builds, static output, widely supported by both hosts.
 - **Vitest** for unit tests, **oxlint** for linting.
-- **No runtime dependencies** beyond React. Date handling and PNG export are hand-written (small and fully tested) rather than pulling in `date-fns`/`html2canvas`.
+- **No runtime dependencies** beyond React, and no PWA plugin either (see "Offline and updates"). Date handling and PNG export are hand-written (small and fully tested) rather than pulling in `date-fns`/`html2canvas`.
 
 ## High-level flow
 
@@ -86,6 +86,18 @@ Presentational components that render props and dispatch actions. They contain n
 
 The palette is defined once in TypeScript. On startup `applyPaletteToCss()` writes it to CSS custom properties (`--c-leave`, …) for the UI, and the canvas renderer reads the same object, so colours always match.
 
+## Offline and updates (PWA)
+
+The app is installable (`public/manifest.webmanifest`, icons in `public/icons/`, iOS meta tags in `index.html`) and works offline after the first visit.
+
+- **Build.** `vite-plugins/pwa.ts` runs after `vite build` (production only). It lists every file in `dist/` except `sw.js`, `_headers` and source maps, hashes their contents into a version, and writes `dist/sw.js` from `vite-plugins/sw.template.js`. Any change to any file therefore changes the worker, which is how browsers notice a new deploy. The pure helpers (`precache.ts`) are unit tested. URLs are relative to the worker's scope, so a different Vite `base` still works.
+- **Worker.** `install` precaches the build into cache `alp-<version>` and does not skip waiting. `activate` deletes older `alp-*` caches and claims open pages. Navigations are network-first, falling back to the cached `index.html` offline, so a new deploy shows up on the next load when online. Other same-origin GETs are cache-first. A `SKIP_WAITING` message activates a waiting worker.
+- **Update flow.** `src/pwa/registerServiceWorker.ts` registers `sw.js` in production only. If a new worker installs (or is already waiting) while an existing worker controls the page, it goes into `updateStore`, which `UpdateBanner` reads with `useSyncExternalStore`. The banner (`role="status"`) shows "Update available" and a Reload button that sends `SKIP_WAITING`. On `controllerchange` the page reloads once; this is skipped on the very first install, and guarded so it can't loop. The page also calls `registration.update()` when it becomes visible again and hourly (at most once a minute).
+- **Hosting.** `sw.js`, `index.html` and the manifest must be served with `no-cache`, and `/assets/*` as immutable (`public/_headers`, `vercel.json`; see deployment docs).
+- **Icons.** SVG sources are in `scripts/icons/`; `npm run generate-icons` renders the PNGs with Playwright. The PNGs are committed, so the build doesn't need it.
+
+**Why hand-written?** The worker is about 60 lines and the app has one static page, so `vite-plugin-pwa`/Workbox would add a dependency (and a risk with new Vite majors) for routing features we don't need. The trade-off is that cache behaviour is ours to maintain.
+
 ## Bank holiday data pipeline
 
 ```
@@ -106,6 +118,7 @@ GOV.UK /bank-holidays.json ──(scripts/update-bank-holidays.mjs)──▶ src
 | `localStorage` | Backend + accounts | Zero hosting cost, private, works on static hosts |
 | Canvas PNG renderer | DOM screenshot libraries | Deterministic output, no dependency, layout independent of screen |
 | Build-time bank holiday snapshot | Runtime fetch from GOV.UK | Offline, no CORS risk, faster first load |
+| Hand-written service worker | `vite-plugin-pwa`, Workbox | Tiny, no dependency, full control over the update prompt |
 | Monday-first weeks | Locale-dependent | UK-focused audience; can become a setting later |
 
 ## Testing

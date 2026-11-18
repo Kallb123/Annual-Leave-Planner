@@ -2,6 +2,7 @@ import { useCallback, useState } from 'react'
 import { BridgeSuggestions } from './components/BridgeSuggestions'
 import { SettingsPanel } from './components/SettingsPanel'
 import { SummaryBar } from './components/SummaryBar'
+import { UpdateBanner } from './components/UpdateBanner'
 import { Legend, YearCalendar } from './components/YearCalendar'
 import type { Bridge } from './domain/bridges'
 import { REGIONS, type LeavePortion } from './domain/types'
@@ -47,6 +48,7 @@ export default function App() {
 
   return (
     <div className="app">
+      <UpdateBanner />
       <header className="app-header">
         <h1>Annual Leave Planner</h1>
         <p className="tagline">Click or tap a working day to book leave, again for a half day, and again to clear. Shift-click or drag (swipe sideways on touch screens) to book or clear a range.</p>
