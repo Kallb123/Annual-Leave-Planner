@@ -378,3 +378,19 @@ button.day:not(:disabled):hover {
 input[aria-invalid='true'] {
   border-color: #b42318;
 }
+
+/* --- Range selection (shift-click / drag) ------------------------------- */
+.month-grid {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* Stop touch drags scrolling the page while selecting days. */
+button.day:not(:disabled) {
+  touch-action: none;
+}
+
+.day--selecting {
+  outline: 2px dashed var(--c-leave);
+  outline-offset: -2px;
+}
