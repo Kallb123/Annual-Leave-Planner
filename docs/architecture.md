@@ -4,7 +4,7 @@
 
 | Constraint | Consequence |
 | --- | --- |
-| Host on Vercel or Cloudflare Pages | Pure static SPA, no server runtime, no platform-specific code |
+| Host on Cloudflare Workers (static assets) or Vercel | Pure static SPA, no server runtime, no platform-specific code |
 | Simple, personal tool | No accounts and no backend. State lives in the browser. |
 | PNG download | Client-side rendering to `<canvas>` |
 | Bank holidays must be correct | Use the official GOV.UK data rather than computing dates ourselves |

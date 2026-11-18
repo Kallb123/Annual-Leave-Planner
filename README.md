@@ -41,14 +41,15 @@ Then open http://localhost:5173.
 
 ## Deploying
 
-The app builds to static files in `dist/`, so it runs on any static host. Vercel and Cloudflare Pages work with no extra setup. `vercel.json` and `public/_headers` set the cache headers that let updates through (see [docs/deployment.md](docs/deployment.md)):
+The app builds to static files in `dist/`, so it runs on any static host. It's set up for Cloudflare Workers (`wrangler.jsonc`) and Vercel (`vercel.json`). `public/_headers` and `vercel.json` set the cache headers that let updates through (see [docs/deployment.md](docs/deployment.md)):
 
-| | Vercel | Cloudflare Pages |
+| | Cloudflare Workers | Vercel |
 | --- | --- | --- |
-| Framework preset | Vite (auto-detected) | None / Vite |
 | Build command | `npm run build` | `npm run build` |
-| Output directory | `dist` | `dist` |
-| Node version | from `engines` in `package.json` | set `NODE_VERSION=22` |
+| Deploy command | `npx wrangler deploy` | (automatic) |
+| Preview (non-production) command | `npx wrangler preview` | (automatic) |
+| Output directory | `dist` (from `wrangler.jsonc`) | `dist` |
+| Node version | set `NODE_VERSION=22` | from `engines` in `package.json` |
 
 See [docs/deployment.md](docs/deployment.md) for details.
 
@@ -72,7 +73,7 @@ docs/            Architecture, plan and deployment notes
 
 - [Architecture](docs/architecture.md): how the app is put together and why
 - [Plan & roadmap](docs/plan.md): scope, milestones and open questions
-- [Deployment](docs/deployment.md): hosting on Vercel or Cloudflare Pages
+- [Deployment](docs/deployment.md): hosting on Cloudflare Workers or Vercel
 
 ## Bank holiday data
 
