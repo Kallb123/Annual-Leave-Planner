@@ -3,14 +3,11 @@ import { validateCompanyDayInput } from '../domain/companyDays'
 import { MONTH_NAMES, parseIso } from '../domain/dates'
 import { COMPANY_DAY_NAME_MAX, type CompanyDay } from '../domain/types'
 import type { PlannerAction } from '../state/plannerState'
+import { newId } from './newId'
 
 interface Props {
   companyDays: CompanyDay[]
   dispatch: (action: PlannerAction) => void
-}
-
-function newId(): string {
-  return globalThis.crypto?.randomUUID?.() ?? `cd-${Date.now()}-${Math.random().toString(36).slice(2)}`
 }
 
 /** "24 December" for repeating days, "24 December 2026" otherwise. */
@@ -36,7 +33,7 @@ export function CompanyDaysSection({ companyDays, dispatch }: Props) {
     }
     dispatch({
       type: 'addCompanyDay',
-      day: { id: newId(), date, name: name.trim(), deducted, repeatsAnnually },
+      day: { id: newId('cd'), date, name: name.trim(), deducted, repeatsAnnually },
     })
     setDate('')
     setName('')
@@ -94,7 +91,7 @@ export function CompanyDaysSection({ companyDays, dispatch }: Props) {
         </div>
         <label className="checkbox">
           <input type="checkbox" checked={deducted} onChange={(e) => setDeducted(e.target.checked)} />
-          <span>Comes out of my allowance</span>
+          <span>Comes out of everyone’s allowance</span>
         </label>
         <label className="checkbox">
           <input

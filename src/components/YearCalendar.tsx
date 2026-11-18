@@ -1,13 +1,15 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent, type PointerEvent } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent, type PointerEvent } from 'react'
 import { WEEKDAY_INITIALS_MON_FIRST, eachDay } from '../domain/dates'
 import type { LeavePortion } from '../domain/types'
 import { nextPortion } from '../state/plannerState'
-import type { DayCell, MonthView, YearView } from '../domain/calendar'
+import type { DayCell, MonthView, PersonLeave, YearView } from '../domain/calendar'
 import { bridgeSummary, type Bridge } from '../domain/bridges'
-import { legendItems } from '../theme'
+import { halfDayTint, legendItems, textOn } from '../theme'
 
 interface Props {
   view: YearView
+  /** The active person's colour, used for hover and drag-selection outlines. */
+  activeColour: string
   /** Suggested bridge days (screen only; the PNG never draws these). */
   bridgeByDate?: ReadonlyMap<string, Bridge>
   onToggleDay: (date: string) => void
@@ -17,7 +19,7 @@ interface Props {
 const dateAt = (x: number, y: number): string | null =>
   document.elementFromPoint(x, y)?.closest<HTMLElement>('[data-date]')?.dataset.date ?? null
 
-export function YearCalendar({ view, bridgeByDate, onToggleDay, onSetRange }: Props) {
+export function YearCalendar({ view, activeColour, bridgeByDate, onToggleDay, onSetRange }: Props) {
   const cells = useMemo(() => {
     const map = new Map<string, DayCell>()
     for (const m of view.months) for (const w of m.weeks) for (const c of w) if (c) map.set(c.date, c)
@@ -108,7 +110,12 @@ export function YearCalendar({ view, bridgeByDate, onToggleDay, onSetRange }: Pr
   }
 
   return (
-    <div className="year" onPointerDown={onPointerDown} onClick={onDayClick}>
+    <div
+      className="year"
+      style={{ '--person-colour': activeColour } as CSSProperties}
+      onPointerDown={onPointerDown}
+      onClick={onDayClick}
+    >
       {view.months.map((m) => (
         <Month key={`${m.year}-${m.month}`} month={m} selecting={selecting} bridgeByDate={bridgeByDate} />
       ))}
@@ -170,8 +177,7 @@ function Day({ cell, selecting, bridge }: { cell: DayCell; selecting: boolean; b
   const description = [
     cell.holidayName,
     cell.companyDayName,
-    cell.leave === 'full' && 'Annual leave',
-    cell.leave === 'half' && 'Half day leave',
+    cell.people.length > 0 && cell.people.map((p) => `${p.name}: ${p.portion === 'half' ? 'half day' : 'annual leave'}`).join(', '),
     cell.overLimit && 'over entitlement',
     bridge && `Suggested: ${bridgeSummary(bridge).charAt(0).toLowerCase()}${bridgeSummary(bridge).slice(1)}`,
   ]
@@ -189,14 +195,53 @@ function Day({ cell, selecting, bridge }: { cell: DayCell; selecting: boolean; b
       aria-pressed={bookable ? cell.leave !== null : undefined}
       data-date={cell.date}
     >
-      {cell.day}
+      {cell.people.length > 0 && <LeaveLayer people={cell.people} />}
+      <span className={`day-num${cell.people.length > 1 ? ' day-num--pill' : ''}`} style={numberStyle(cell.people)}>
+        {cell.day}
+      </span>
     </button>
   )
 }
 
-export function Legend({ showBridge = false }: { showBridge?: boolean }) {
+const halfDayFill = (colour: string) => `linear-gradient(to bottom right, ${halfDayTint(colour)} 50%, ${colour} 50%)`
+
+/** Equal-width vertical segments, one per person on leave, in their colour (half days diagonal). */
+function LeaveLayer({ people }: { people: PersonLeave[] }) {
+  return (
+    <span className="day-leave" aria-hidden="true">
+      {people.map((p) => (
+        <span key={p.personId} style={{ background: p.portion === 'half' ? halfDayFill(p.colour) : p.colour }} />
+      ))}
+    </span>
+  )
+}
+
+/** One person's full day fills the cell with their colour, so the number needs a contrasting colour. */
+function numberStyle(people: PersonLeave[]): CSSProperties | undefined {
+  return people.length === 1 && people[0].portion === 'full' ? { color: textOn(people[0].colour) } : undefined
+}
+
+export function Legend({
+  people,
+  activeColour,
+  showBridge = false,
+}: {
+  people: { id: string; name: string; colour: string }[]
+  activeColour: string
+  showBridge?: boolean
+}) {
   return (
     <ul className="legend">
+      {people.map((p) => (
+        <li key={p.id}>
+          <span className="swatch" style={{ background: p.colour }} />
+          {p.name}
+        </li>
+      ))}
+      <li>
+        <span className="swatch" style={{ background: halfDayFill(activeColour) }} />
+        Half day
+      </li>
       {legendItems.map((item) => (
         <li key={item.key}>
           <span className="swatch" style={{ background: `var(--c-${item.key})` }} />
