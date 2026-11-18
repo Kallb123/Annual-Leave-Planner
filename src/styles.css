@@ -243,7 +243,7 @@ select {
 }
 
 .stat--warn dd {
-  color: #c2410c;
+  color: var(--c-warn);
 }
 
 .notice {
@@ -377,6 +377,31 @@ button.day:not(:disabled):hover {
 
 input[aria-invalid='true'] {
   border-color: #b42318;
+}
+
+/* --- Over-entitlement warning (issue #6) ---------------------------------- */
+
+.warning {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  background: #fff7e6;
+  border: 1px solid var(--c-warn);
+  border-left-width: 4px;
+  border-radius: 8px;
+  padding: 8px 12px;
+  margin: 0 0 16px;
+  color: var(--c-warn);
+  font-weight: 600;
+}
+
+.day--over-limit {
+  outline: 3px solid var(--c-warn);
+  outline-offset: -3px;
+}
+
+.day--over-limit:focus-visible {
+  outline-color: var(--c-accent);
 }
 
 /* --- Range selection (shift-click / drag) ------------------------------- */
