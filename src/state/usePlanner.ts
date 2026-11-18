@@ -3,10 +3,20 @@ import { overAllocatedDates, overEntitlementMessage, summarise } from '../domain
 import { bankHolidayIndex, coversRange } from '../domain/bankHolidays'
 import { companyDayIndex } from '../domain/companyDays'
 import { findBridges, type Bridge } from '../domain/bridges'
-import { buildYearView } from '../domain/calendar'
-import { parseIso, todayIso } from '../domain/dates'
+import { buildYearView, type PersonLeaveSource } from '../domain/calendar'
+import { parseIso, todayIso, type IsoDate } from '../domain/dates'
 import { leaveYearContaining, leaveYearLabel, leaveYearStartingIn } from '../domain/leaveYear'
-import { hasSavedState, initialState, persist, plannerReducer } from './plannerState'
+import type { AllowanceSummary } from '../domain/allowance'
+import type { Person } from '../domain/types'
+import { activePerson as selectActivePerson, hasSavedState, initialState, persist, personSettings, plannerReducer } from './plannerState'
+
+export interface PersonStatus {
+  person: Person
+  active: boolean
+  summary: AllowanceSummary
+  overLimit: ReadonlySet<IsoDate>
+  warning: string | null
+}
 
 /**
  * Single hook that owns planner state and derives everything the UI needs.
@@ -16,7 +26,10 @@ export function usePlanner() {
   const [state, dispatch] = useReducer(plannerReducer, undefined, () => initialState())
   // Read once, during the first render, before the persist effect below writes to storage.
   const [hadSavedState] = useState(() => hasSavedState())
-  const { settings, leave, companyDays: companyDayList, yearOffset } = state
+  const { shared, people: peopleList, companyDays: companyDayList, yearOffset } = state
+  const activePerson = selectActivePerson(state)
+  const settings = useMemo(() => personSettings(shared, activePerson), [shared, activePerson])
+  const leave = activePerson.leave
 
   useEffect(() => {
     persist(state)
@@ -34,17 +47,40 @@ export function usePlanner() {
 
   const companyDays = useMemo(() => companyDayIndex(companyDayList), [companyDayList])
 
-  const overLimit = useMemo(
-    () => overAllocatedDates(range, settings, leave, holidays, companyDays),
-    [range, settings, leave, holidays, companyDays],
+  const label = leaveYearLabel(range)
+
+  const people = useMemo<PersonStatus[]>(
+    () =>
+      peopleList.map((person) => {
+        const effective = personSettings(shared, person)
+        const summary = summarise(range, effective, person.leave, holidays, companyDays)
+        return {
+          person,
+          active: person.id === activePerson.id,
+          summary,
+          overLimit: overAllocatedDates(range, effective, person.leave, holidays, companyDays),
+          warning: overEntitlementMessage(summary.remaining, label),
+        }
+      }),
+    [peopleList, shared, activePerson.id, range, holidays, companyDays, label],
   )
 
-  const yearView = useMemo(
-    () => buildYearView(range, settings, leave, holidays, companyDays, today, overLimit),
-    [range, settings, leave, holidays, companyDays, today, overLimit],
-  )
+  const activeStatus = people.find((p) => p.active) ?? people[0]
 
-  // Suggestions are computed from the planner state and never touch the PNG.
+  const yearView = useMemo(() => {
+    const sources: PersonLeaveSource[] = people.map((p) => ({
+      id: p.person.id,
+      name: p.person.name,
+      colour: p.person.colour,
+      active: p.active,
+      settings: personSettings(shared, p.person),
+      leave: p.person.leave,
+      overLimit: p.overLimit,
+    }))
+    return buildYearView(range, settings, leave, holidays, companyDays, today, activeStatus.overLimit, sources)
+  }, [people, shared, range, settings, leave, holidays, companyDays, today, activeStatus])
+
+  // Suggestions are computed from the active person's plan and never touch the PNG.
   const bridges = useMemo(
     () =>
       settings.showBridgeSuggestions
@@ -60,24 +96,20 @@ export function usePlanner() {
     return map
   }, [bridges])
 
-  const summary = useMemo(
-    () => summarise(range, settings, leave, holidays, companyDays),
-    [range, settings, leave, holidays, companyDays],
-  )
-
-  const label = leaveYearLabel(range)
-
   return {
     state,
     hadSavedState,
     dispatch,
     range,
     label,
+    settings,
+    activePerson,
+    people,
     yearView,
-    summary,
+    summary: activeStatus.summary,
     bridges,
     bridgeByDate,
-    overEntitlementWarning: overEntitlementMessage(summary.remaining, label),
+    overEntitlementWarning: activeStatus.warning,
     hasBankHolidayData: coversRange(range, settings.region),
   }
 }
