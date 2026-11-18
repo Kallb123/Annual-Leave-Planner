@@ -10,6 +10,7 @@ import { REGIONS, type LeavePortion } from './domain/types'
 import { downloadCanvasAsPng } from './export/download'
 import { renderYearToCanvas } from './export/renderPng'
 import { useMediaQuery } from './hooks/useMediaQuery'
+import { companyOf } from './state/plannerState'
 import { usePlanner } from './state/usePlanner'
 
 export default function App() {
@@ -61,7 +62,7 @@ export default function App() {
 
       <div className="layout">
         <aside>
-          <SettingsPanel collapsible={smallScreen} defaultCollapsed={hadSavedState} settings={settings} activePerson={activePerson} peopleCount={people.length} companyDays={state.companyDays} dispatch={dispatch} />
+          <SettingsPanel collapsible={smallScreen} defaultCollapsed={hadSavedState} settings={settings} activePerson={activePerson} peopleCount={people.length} company={companyOf(state.companies, activePerson)} dispatch={dispatch} />
         </aside>
 
         <main className="panel">

@@ -4,6 +4,9 @@ import {
   DEFAULT_PERSON_SETTINGS,
   DEFAULT_SETTINGS,
   PERSON_NAME_MAX,
+  COMPANY_NAME_MAX,
+  DEFAULT_COMPANY_DAY_NAME,
+  type Company,
   type CompanyDay,
   type LeaveEntries,
   type Person,
@@ -12,7 +15,10 @@ import {
 import { PERSON_COLOURS } from '../theme'
 import {
   STORAGE_KEY,
+  MAX_COMPANIES,
   activePerson,
+  companyIndexFor,
+  companyOf,
   hasSavedState,
   initialState,
   migrateStored,
@@ -46,13 +52,14 @@ class MemoryStorage implements Storage {
 
 const DEFAULT_SHARED = splitForTest(DEFAULT_SETTINGS).shared
 
-const alice: Person = { ...DEFAULT_PERSON_SETTINGS, id: 'p1', name: 'Alice', colour: PERSON_COLOURS[0], leave: {} }
+const alice: Person = { ...DEFAULT_PERSON_SETTINGS, id: 'p1', name: 'Alice', colour: PERSON_COLOURS[0], leave: {}, companyId: null }
 
 const base: PlannerState = {
   shared: DEFAULT_SHARED,
   people: [alice],
   activePersonId: 'p1',
-  companyDays: [],
+  companies: [],
+  editingCompanyId: null,
   yearOffset: 0,
 }
 
@@ -63,8 +70,8 @@ function single(opts: { leave?: LeaveEntries; settings?: Partial<Settings>; comp
   return {
     ...base,
     shared,
-    people: [{ ...alice, ...person, leave: opts.leave ?? {} }],
-    companyDays: opts.companyDays ?? [],
+    people: [{ ...alice, ...person, leave: opts.leave ?? {}, companyId: opts.companyDays ? 'co1' : null }],
+    companies: opts.companyDays ? [{ id: 'co1', name: 'Acme', days: opts.companyDays }] : [],
   }
 }
 
@@ -154,7 +161,24 @@ describe('plannerReducer', () => {
       expect(Object.keys(leaveOf(s))).toEqual(['2026-12-30'])
     })
 
-    it('overwrites existing portions', () => {
+    it("uses the active person's company days, not another company's", () => {
+      const two: PlannerState = {
+        ...twoPeople,
+        companies: [
+          { id: 'co1', name: 'Acme', days: [closure] },
+          { id: 'co2', name: 'Beta', days: [] },
+        ],
+        people: [
+          { ...alice, companyId: 'co1' },
+          { ...twoPeople.people[1], companyId: 'co2' },
+        ],
+      }
+      const range = { type: 'setLeaveRange', start: '2026-12-29', end: '2026-12-29', portion: 'full' } as const
+      expect(leaveOf(plannerReducer(two, range), 'p1')).toEqual({})
+      expect(leaveOf(plannerReducer({ ...two, activePersonId: 'p2' }, range), 'p2')).toEqual({ '2026-12-29': 'full' })
+    })
+
+    it('overwrites existing  portions', () => {
       const start = single({ leave: { '2026-11-24': 'half' } })
       const s = plannerReducer(start, { type: 'setLeaveRange', start: '2026-11-23', end: '2026-11-24', portion: 'full' })
       expect(leaveOf(s)).toEqual({ '2026-11-23': 'full', '2026-11-24': 'full' })
@@ -201,26 +225,145 @@ describe('plannerReducer', () => {
     })
   })
 
-  describe('company days', () => {
-    it('adds company days, sorted by date', () => {
-      let s = plannerReducer(base, { type: 'addCompanyDay', day: closure })
-      s = plannerReducer(s, { type: 'addCompanyDay', day: { ...closure, id: 'c2', date: '2026-01-02', name: ' New ' } })
-      expect(s.companyDays.map((d) => [d.id, d.name])).toEqual([
-        ['c2', 'New'],
-        ['c1', 'Office closure'],
+  describe('companies', () => {
+    const withCo: PlannerState = {
+      ...twoPeople,
+      companies: [{ id: 'co1', name: 'Acme', days: [] }],
+      people: [{ ...alice, companyId: 'co1' }, { ...twoPeople.people[1], companyId: 'co1' }],
+    }
+    const daysOf = (st: PlannerState, id = 'co1') => st.companies.find((c) => c.id === id)!.days
+
+    it('adds a company, starts editing it and adopts it for a person with none', () => {
+      const s = plannerReducer(base, { type: 'addCompany', id: 'co1', name: '  Acme  ' })
+      expect(s.companies).toEqual([{ id: 'co1', name: 'Acme', days: [] }])
+      expect(s.editingCompanyId).toBe('co1')
+      expect(s.people[0].companyId).toBe('co1')
+    })
+
+    it('does not move a person who already has a company', () => {
+      const s = plannerReducer(withCo, { type: 'addCompany', id: 'co2', name: 'Beta' })
+      expect(s.people[0].companyId).toBe('co1')
+      expect(s.editingCompanyId).toBe('co2')
+    })
+
+    it('adopts when the active person points at a missing company', () => {
+      const s = plannerReducer(
+        { ...base, people: [{ ...alice, companyId: 'gone' }] },
+        { type: 'addCompany', id: 'co2', name: 'Beta' },
+      )
+      expect(s.people[0].companyId).toBe('co2')
+    })
+
+    it('ignores empty names, duplicate ids and the 21st company', () => {
+      expect(plannerReducer(base, { type: 'addCompany', id: 'x', name: '   ' })).toBe(base)
+      expect(plannerReducer(withCo, { type: 'addCompany', id: 'co1', name: 'Again' })).toBe(withCo)
+      const full: PlannerState = {
+        ...base,
+        companies: Array.from({ length: MAX_COMPANIES }, (_, i) => ({ id: `c${i}`, name: `C${i}`, days: [] })),
+      }
+      expect(plannerReducer(full, { type: 'addCompany', id: 'extra', name: 'Extra' })).toBe(full)
+    })
+
+    it('caps the name length', () => {
+      const s = plannerReducer(base, { type: 'addCompany', id: 'co1', name: 'x'.repeat(99) })
+      expect(s.companies[0].name).toHaveLength(COMPANY_NAME_MAX)
+    })
+
+    it('renames, ignoring empty names and unknown ids', () => {
+      const s = plannerReducer(withCo, { type: 'renameCompany', id: 'co1', name: ' Zed ' })
+      expect(s.companies[0].name).toBe('Zed')
+      expect(plannerReducer(withCo, { type: 'renameCompany', id: 'co1', name: ' ' })).toBe(withCo)
+      expect(plannerReducer(withCo, { type: 'renameCompany', id: 'nope', name: 'Zed' })).toBe(withCo)
+    })
+
+    it('removes a company, unassigning its people and leaving edit mode', () => {
+      const s = plannerReducer({ ...withCo, editingCompanyId: 'co1' }, { type: 'removeCompany', id: 'co1' })
+      expect(s.companies).toEqual([])
+      expect(s.people.map((p) => p.companyId)).toEqual([null, null])
+      expect(s.editingCompanyId).toBeNull()
+    })
+
+    it('keeps edit mode on another company when one is removed', () => {
+      const two: PlannerState = {
+        ...withCo,
+        companies: [...withCo.companies, { id: 'co2', name: 'Beta', days: [] }],
+        editingCompanyId: 'co2',
+      }
+      expect(plannerReducer(two, { type: 'removeCompany', id: 'co1' }).editingCompanyId).toBe('co2')
+      expect(plannerReducer(two, { type: 'removeCompany', id: 'nope' })).toBe(two)
+    })
+
+    it('selects and stops editing a company; selectPerson also stops editing', () => {
+      let s = plannerReducer(withCo, { type: 'selectCompany', id: 'co1' })
+      expect(s.editingCompanyId).toBe('co1')
+      expect(plannerReducer(withCo, { type: 'selectCompany', id: 'nope' })).toBe(withCo)
+      expect(plannerReducer(s, { type: 'stopEditingCompany' }).editingCompanyId).toBeNull()
+      s = plannerReducer(s, { type: 'selectPerson', id: 'p2' })
+      expect(s.editingCompanyId).toBeNull()
+      expect(s.activePersonId).toBe('p2')
+      expect(plannerReducer({ ...withCo, editingCompanyId: 'co1' }, { type: 'selectPerson', id: 'nope' }).editingCompanyId).toBe('co1')
+    })
+
+    it('sets a person company, allowing none but not unknown ids', () => {
+      let s = plannerReducer(twoPeople, { type: 'setPersonCompany', personId: 'p2', companyId: null })
+      expect(s).toEqual(twoPeople)
+      s = plannerReducer(withCo, { type: 'setPersonCompany', personId: 'p2', companyId: null })
+      expect(s.people[1].companyId).toBeNull()
+      expect(plannerReducer(withCo, { type: 'setPersonCompany', personId: 'p2', companyId: 'nope' })).toBe(withCo)
+      expect(plannerReducer(withCo, { type: 'setPersonCompany', personId: 'nope', companyId: null })).toBe(withCo)
+    })
+
+    const assign = (st: PlannerState, over: Record<string, unknown> = {}) =>
+      plannerReducer(st, {
+        type: 'assignCompanyDays',
+        companyId: 'co1',
+        dates: ['2026-12-29'],
+        name: 'Closure',
+        deducted: true,
+        repeatsAnnually: false,
+        idPrefix: 'n',
+        ...over,
+      } as never)
+
+    it('assigns days with prefixed ids, sorted by date, skipping invalid dates', () => {
+      const s = assign(withCo, { dates: ['2026-12-30', 'bad', '2026-12-29'], name: '  ' })
+      expect(daysOf(s)).toEqual([
+        { id: 'n-2', date: '2026-12-29', name: DEFAULT_COMPANY_DAY_NAME, deducted: true, repeatsAnnually: false },
+        { id: 'n-0', date: '2026-12-30', name: DEFAULT_COMPANY_DAY_NAME, deducted: true, repeatsAnnually: false },
       ])
     })
 
-    it('ignores invalid or duplicate-id additions', () => {
-      const s = plannerReducer(base, { type: 'addCompanyDay', day: closure })
-      expect(plannerReducer(s, { type: 'addCompanyDay', day: { ...closure, name: '  ' } })).toBe(s)
-      expect(plannerReducer(s, { type: 'addCompanyDay', day: { ...closure, id: 'c1', name: 'Again' } })).toBe(s)
-      expect(plannerReducer(s, { type: 'addCompanyDay', day: { ...closure, id: 'c9', date: 'nope' } })).toBe(s)
+    it('replaces a matching day in place, keeping its id', () => {
+      const first = assign(withCo, { repeatsAnnually: true })
+      const s = assign(first, { dates: ['2030-12-29'], name: 'Renamed', deducted: false, repeatsAnnually: false, idPrefix: 'm' })
+      expect(daysOf(s)).toEqual([
+        { id: 'n-0', date: '2030-12-29', name: 'Renamed', deducted: false, repeatsAnnually: false },
+      ])
     })
 
-    it('removes by id', () => {
-      const s = plannerReducer(single({ companyDays: [closure] }), { type: 'removeCompanyDay', id: 'c1' })
-      expect(s.companyDays).toEqual([])
+    it('ignores an unknown company when assigning', () => {
+      expect(assign(withCo, { companyId: 'nope' })).toBe(withCo)
+    })
+
+    it('removes days by date, including repeating ones', () => {
+      const s0 = assign(assign(withCo, { repeatsAnnually: true }), { dates: ['2026-12-30'], idPrefix: 'k' })
+      const s = plannerReducer(s0, { type: 'removeCompanyDays', companyId: 'co1', dates: ['2031-12-29', 'bad'] })
+      expect(daysOf(s).map((d) => d.id)).toEqual(['k-0'])
+    })
+
+    it('removes a day by id within its company', () => {
+      const s0 = assign(withCo)
+      expect(daysOf(plannerReducer(s0, { type: 'removeCompanyDay', companyId: 'co1', id: 'n-0' }))).toEqual([])
+      expect(plannerReducer(s0, { type: 'removeCompanyDay', companyId: 'nope', id: 'n-0' })).toBe(s0)
+    })
+
+    it('selectors resolve a person company', () => {
+      const cs: Company[] = [{ id: 'co1', name: 'Acme', days: [closure] }]
+      expect(companyOf(cs, { companyId: 'co1' })).toBe(cs[0])
+      expect(companyOf(cs, { companyId: null })).toBeUndefined()
+      expect(companyOf(cs, { companyId: 'gone' })).toBeUndefined()
+      expect(companyIndexFor(cs, { companyId: 'co1' }).get('2026-12-29')).toEqual(closure)
+      expect(companyIndexFor(cs, { companyId: null }).get('2026-12-29')).toBeUndefined()
     })
   })
 
@@ -263,7 +406,7 @@ describe('plannerReducer', () => {
     it('appends, trims, gives defaults and makes the person active', () => {
       const s = plannerReducer(base, { type: 'addPerson', id: 'p2', name: '  Bob  ', colour: '#ABCDEF' })
       expect(s.people).toHaveLength(2)
-      expect(s.people[1]).toEqual({ ...DEFAULT_PERSON_SETTINGS, id: 'p2', name: 'Bob', colour: '#abcdef', leave: {} })
+      expect(s.people[1]).toEqual({ ...DEFAULT_PERSON_SETTINGS, id: 'p2', name: 'Bob', colour: '#abcdef', leave: {}, companyId: null })
       expect(s.activePersonId).toBe('p2')
     })
 
@@ -353,28 +496,44 @@ describe('selectors', () => {
 })
 
 describe('persistence', () => {
-  it('round-trips v3 state, but not the year offset', () => {
+  it('round-trips v4 state, but not the year offset or edit mode', () => {
     const storage = new MemoryStorage()
     const state: PlannerState = {
       shared: { ...DEFAULT_SHARED, region: 'scotland' },
       people: [
-        { ...alice, allowanceDays: 30, leave: { '2026-11-18': 'half' } },
-        { ...alice, id: 'p2', name: 'Bob', colour: '#2563eb', workingDays: [1, 2], leave: { '2026-11-19': 'full' } },
+        { ...alice, allowanceDays: 30, leave: { '2026-11-18': 'half' }, companyId: 'co1' },
+        { ...alice, id: 'p2', name: 'Bob', colour: '#2563eb', workingDays: [1, 2], leave: { '2026-11-19': 'full' }, companyId: null },
       ],
       activePersonId: 'p2',
-      companyDays: [closure],
+      companies: [
+        { id: 'co1', name: 'Acme', days: [closure] },
+        { id: 'co2', name: 'Beta', days: [] },
+      ],
+      editingCompanyId: 'co2',
       yearOffset: 2,
     }
     persist(state, storage)
-    expect(JSON.parse(storage.getItem(STORAGE_KEY)!).version).toBe(3)
-    expect(initialState(storage)).toEqual({ ...state, yearOffset: 0 })
+    const saved = JSON.parse(storage.getItem(STORAGE_KEY)!)
+    expect(saved.version).toBe(4)
+    expect(saved).not.toHaveProperty('editingCompanyId')
+    expect(saved).not.toHaveProperty('companyDays')
+    expect(initialState(storage)).toEqual({ ...state, editingCompanyId: null, yearOffset: 0 })
   })
 
-  it('starts with one default person without storage', () => {
+  it('starts with one default person in one default company without storage', () => {
     const s = initialState(undefined)
     expect(s.people).toEqual([
-      { ...DEFAULT_PERSON_SETTINGS, id: 'person-1', name: DEFAULT_PERSON_NAME, colour: PERSON_COLOURS[0], leave: {} },
+      {
+        ...DEFAULT_PERSON_SETTINGS,
+        id: 'person-1',
+        name: DEFAULT_PERSON_NAME,
+        colour: PERSON_COLOURS[0],
+        leave: {},
+        companyId: 'company-1',
+      },
     ])
+    expect(s.companies).toEqual([{ id: 'company-1', name: 'My company', days: [] }])
+    expect(s.editingCompanyId).toBeNull()
     expect(s.activePersonId).toBe('person-1')
     expect(s.shared).toEqual(DEFAULT_SHARED)
   })
@@ -403,9 +562,9 @@ describe('persistence', () => {
       STORAGE_KEY,
       JSON.stringify({ version: 2, settings: {}, leave: {}, companyDays: [closure, { ...closure, id: 'x', date: 'bad' }, 7] }),
     )
-    expect(initialState(storage).companyDays).toEqual([closure])
+    expect(initialState(storage).companies[0].days).toEqual([closure])
     storage.setItem(STORAGE_KEY, JSON.stringify({ version: 2, settings: {}, leave: {}, companyDays: 'oops' }))
-    expect(initialState(storage).companyDays).toEqual([])
+    expect(initialState(storage).companies[0].days).toEqual([])
   })
 
   describe('v1 and v2 migration', () => {
@@ -426,6 +585,7 @@ describe('persistence', () => {
         workingDays: [1, 2, 3],
         bankHolidaysDeducted: true,
         leave: v1.leave,
+        companyId: 'company-1',
       })
       expect(restored.activePersonId).toBe('person-1')
       expect(restored.shared.region).toBe('scotland')
@@ -436,13 +596,13 @@ describe('persistence', () => {
       storage.setItem(STORAGE_KEY, JSON.stringify(v1))
       const restored = initialState(storage)
       expectOnePerson(restored)
-      expect(restored.companyDays).toEqual([])
+      expect(restored.companies).toEqual([{ id: 'company-1', name: 'My company', days: [] }])
     })
 
     it('ignores a stray companyDays field on v1 data', () => {
       const storage = new MemoryStorage()
       storage.setItem(STORAGE_KEY, JSON.stringify({ ...v1, companyDays: [closure] }))
-      expect(initialState(storage).companyDays).toEqual([])
+      expect(initialState(storage).companies[0].days).toEqual([])
     })
 
     it('loads v2 data as one person, keeping company days', () => {
@@ -450,19 +610,84 @@ describe('persistence', () => {
       storage.setItem(STORAGE_KEY, JSON.stringify({ ...v1, version: 2, companyDays: [closure] }))
       const restored = initialState(storage)
       expectOnePerson(restored)
-      expect(restored.companyDays).toEqual([closure])
+      expect(restored.companies).toEqual([{ id: 'company-1', name: 'My company', days: [closure] }])
+      expect(restored.people[0].companyId).toBe('company-1')
     })
 
-    it('rewrites as v3 on the next persist', () => {
+    it('rewrites as v4 on the next persist', () => {
       const storage = new MemoryStorage()
       storage.setItem(STORAGE_KEY, JSON.stringify(v1))
       persist(initialState(storage), storage)
       const saved = JSON.parse(storage.getItem(STORAGE_KEY)!)
-      expect(saved.version).toBe(3)
-      expect(saved.companyDays).toEqual([])
+      expect(saved.version).toBe(4)
+      expect(saved.companies).toEqual([{ id: 'company-1', name: 'My company', days: [] }])
       expect(saved.people[0].leave).toEqual(v1.leave)
       expect(saved).not.toHaveProperty('settings')
       expect(saved).not.toHaveProperty('leave')
+    })
+  })
+
+  describe('v3 migration', () => {
+    it('moves company days into company-1 and assigns everyone to it', () => {
+      const m = migrateStored({
+        version: 3,
+        shared: {},
+        people: [{ id: 'a', name: 'A', companyId: 'ignored' }, { id: 'b', name: 'B' }],
+        activePersonId: 'b',
+        companyDays: [closure, { ...closure, id: 'bad', date: 'nope' }],
+      })!
+      expect(m.companies).toEqual([{ id: 'company-1', name: 'My company', days: [closure] }])
+      expect(m.people.map((p) => p.companyId)).toEqual(['company-1', 'company-1'])
+      expect(m.activePersonId).toBe('b')
+    })
+  })
+
+  describe('v4 sanitising', () => {
+    const load = (data: unknown) => migrateStored({ version: 4, shared: {}, companies: [], ...(data as object) })!
+
+    it('drops bad companies and duplicate ids, cleans names and days', () => {
+      const m = load({
+        companies: [
+          null,
+          5,
+          { name: 'No id' },
+          { id: 7 },
+          { id: 'a', name: '  Acme ', days: [closure, { ...closure, id: 'x', date: 'bad' }] },
+          { id: 'a', name: 'Dup' },
+          { id: 'b', name: '   ', days: 'oops' },
+          { id: 'c', name: 'y'.repeat(99) },
+        ],
+        people: [{ id: 'p' }],
+      })
+      expect(m.companies.map((c) => [c.id, c.name.length > 40 ? 'long' : c.name])).toEqual([
+        ['a', 'Acme'],
+        ['b', 'Company 2'],
+        ['c', 'y'.repeat(COMPANY_NAME_MAX)],
+      ])
+      expect(m.companies[0].days).toEqual([closure])
+      expect(m.companies[1].days).toEqual([])
+    })
+
+    it('caps the number of companies', () => {
+      const companies = Array.from({ length: MAX_COMPANIES + 5 }, (_, i) => ({ id: `c${i}`, name: `C${i}` }))
+      expect(load({ companies }).companies).toHaveLength(MAX_COMPANIES)
+    })
+
+    it('nulls dangling or non-string companyIds', () => {
+      const m = load({
+        companies: [{ id: 'a', name: 'A' }],
+        people: [
+          { id: 'p1', companyId: 'a' },
+          { id: 'p2', companyId: 'gone' },
+          { id: 'p3', companyId: 4 },
+          { id: 'p4' },
+        ],
+      })
+      expect(m.people.map((p) => p.companyId)).toEqual(['a', null, null, null])
+    })
+
+    it('tolerates a missing companies field', () => {
+      expect(migrateStored({ version: 4, shared: {}, people: [] })!.companies).toEqual([])
     })
   })
 

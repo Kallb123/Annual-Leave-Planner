@@ -1,14 +1,21 @@
-import { useEffect, useMemo, useReducer, useState } from 'react'
+import { useCallback, useEffect, useMemo, useReducer, useState } from 'react'
 import { overAllocatedDates, overEntitlementMessage, summarise } from '../domain/allowance'
 import { bankHolidayIndex, coversRange } from '../domain/bankHolidays'
-import { companyDayIndex } from '../domain/companyDays'
+import { companyDayIndex, NO_COMPANY_DAYS, type CompanyDayIndex } from '../domain/companyDays'
 import { findBridges, type Bridge } from '../domain/bridges'
 import { buildYearView, type PersonLeaveSource } from '../domain/calendar'
 import { parseIso, todayIso, type IsoDate } from '../domain/dates'
 import { leaveYearContaining, leaveYearLabel, leaveYearStartingIn } from '../domain/leaveYear'
 import type { AllowanceSummary } from '../domain/allowance'
-import type { Person } from '../domain/types'
-import { activePerson as selectActivePerson, hasSavedState, initialState, persist, personSettings, plannerReducer } from './plannerState'
+import type { Company, Person } from '../domain/types'
+import {
+  activePerson as selectActivePerson,
+  hasSavedState,
+  initialState,
+  persist,
+  personSettings,
+  plannerReducer,
+} from './plannerState'
 
 export interface PersonStatus {
   person: Person
@@ -26,7 +33,7 @@ export function usePlanner() {
   const [state, dispatch] = useReducer(plannerReducer, undefined, () => initialState())
   // Read once, during the first render, before the persist effect below writes to storage.
   const [hadSavedState] = useState(() => hasSavedState())
-  const { shared, people: peopleList, companyDays: companyDayList, yearOffset } = state
+  const { shared, people: peopleList, companies, editingCompanyId, yearOffset } = state
   const activePerson = selectActivePerson(state)
   const settings = useMemo(() => personSettings(shared, activePerson), [shared, activePerson])
   const leave = activePerson.leave
@@ -45,7 +52,23 @@ export function usePlanner() {
 
   const holidays = useMemo(() => bankHolidayIndex(settings.region), [settings.region])
 
-  const companyDays = useMemo(() => companyDayIndex(companyDayList), [companyDayList])
+  /** One index per company, so each person only sees their own company's days. */
+  const companyIndexes = useMemo(() => new Map(companies.map((c) => [c.id, companyDayIndex(c.days)])), [companies])
+  const indexFor = useCallback(
+    (person: Pick<Person, 'companyId'>): CompanyDayIndex =>
+      (person.companyId !== null && companyIndexes.get(person.companyId)) || NO_COMPANY_DAYS,
+    [companyIndexes],
+  )
+
+  const activeCompanyDays = indexFor(activePerson)
+
+  const editingCompany = useMemo<Company | null>(
+    () => companies.find((c) => c.id === editingCompanyId) ?? null,
+    [companies, editingCompanyId],
+  )
+  const editingCompanyIndex = editingCompany ? (companyIndexes.get(editingCompany.id) ?? NO_COMPANY_DAYS) : NO_COMPANY_DAYS
+  /** What the calendar shows as company days: the company being edited, else the active person's. */
+  const viewCompanyDays = editingCompany ? editingCompanyIndex : activeCompanyDays
 
   const label = leaveYearLabel(range)
 
@@ -53,6 +76,7 @@ export function usePlanner() {
     () =>
       peopleList.map((person) => {
         const effective = personSettings(shared, person)
+        const companyDays = indexFor(person)
         const summary = summarise(range, effective, person.leave, holidays, companyDays)
         return {
           person,
@@ -62,7 +86,7 @@ export function usePlanner() {
           warning: overEntitlementMessage(summary.remaining, label),
         }
       }),
-    [peopleList, shared, activePerson.id, range, holidays, companyDays, label],
+    [peopleList, shared, activePerson.id, range, holidays, indexFor, label],
   )
 
   const activeStatus = people.find((p) => p.active) ?? people[0]
@@ -76,17 +100,18 @@ export function usePlanner() {
       settings: personSettings(shared, p.person),
       leave: p.person.leave,
       overLimit: p.overLimit,
+      companyDays: indexFor(p.person),
     }))
-    return buildYearView(range, settings, leave, holidays, companyDays, today, activeStatus.overLimit, sources)
-  }, [people, shared, range, settings, leave, holidays, companyDays, today, activeStatus])
+    return buildYearView(range, settings, leave, holidays, viewCompanyDays, today, activeStatus.overLimit, sources)
+  }, [people, shared, range, settings, leave, holidays, viewCompanyDays, today, activeStatus, indexFor])
 
   // Suggestions are computed from the active person's plan and never touch the PNG.
   const bridges = useMemo(
     () =>
       settings.showBridgeSuggestions
-        ? findBridges({ range, today, settings, leave, holidays, companyDays })
+        ? findBridges({ range, today, settings, leave, holidays, companyDays: activeCompanyDays })
         : [],
-    [range, today, settings, leave, holidays, companyDays],
+    [range, today, settings, leave, holidays, activeCompanyDays],
   )
 
   /** The best-ranked suggestion covering each day (bridges never overlap, but be explicit). */
@@ -105,6 +130,9 @@ export function usePlanner() {
     settings,
     activePerson,
     people,
+    companies,
+    editingCompany,
+    editingCompanyIndex,
     yearView,
     summary: activeStatus.summary,
     bridges,

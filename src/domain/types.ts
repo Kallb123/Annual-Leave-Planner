@@ -77,6 +77,8 @@ export interface Person extends PersonSettings {
   /** `#rrggbb`, lower case. */
   colour: string
   leave: LeaveEntries
+  /** Id of a company in the planner's `companies`, or null for none. */
+  companyId: string | null
 }
 
 export type LeavePortion = 'full' | 'half'
@@ -111,4 +113,21 @@ export interface CompanyDay {
   deducted: boolean
   /** Occurs on the same month and day in every year. */
   repeatsAnnually: boolean
+}
+
+/** Maximum length of a company's name, after trimming. */
+export const COMPANY_NAME_MAX = 40
+
+/** Name given to the company created from older saved data, or on first visit. */
+export const DEFAULT_COMPANY_NAME = 'My company'
+
+/** Name given to a company day assigned without one. */
+export const DEFAULT_COMPANY_DAY_NAME = 'Company day'
+
+/** An employer, with the days it gives off. Only its own people are affected by them. */
+export interface Company {
+  id: string
+  name: string
+  /** Sorted by date. */
+  days: CompanyDay[]
 }

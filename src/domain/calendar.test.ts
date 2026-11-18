@@ -64,8 +64,10 @@ describe('buildYearView', () => {
     expect(cells.find((c) => c.date === '2026-12-29')).toMatchObject({
       kind: 'company-day',
       companyDayName: 'Office closure',
+      companyDay: { id: 'a', name: 'Office closure' },
     })
     expect(cells.find((c) => c.date === '2026-12-30')?.companyDayName).toBeNull()
+    expect(cells.find((c) => c.date === '2026-12-30')?.companyDay).toBeNull()
   })
 })
 
@@ -78,12 +80,24 @@ describe('DayCell.people', () => {
     settings: DEFAULT_SETTINGS,
     leave: {},
     overLimit: new Set(),
+    companyDays: NO_COMPANY_DAYS,
     ...over,
   })
   const cellFor = (people: PersonLeaveSource[], date: string, holidays = new Map<string, string>(), overLimit = new Set<string>()) =>
     buildYearView(range, DEFAULT_SETTINGS, {}, holidays, NO_COMPANY_DAYS, null, overLimit, people)
       .months.flatMap((m) => m.weeks.flat())
       .find((c) => c?.date === date)!
+
+  it("uses each person's own company days: A's closure does not hide B's leave", () => {
+    const closure = companyDayIndex([
+      { id: 'a', date: '2026-11-18', name: 'Closed', deducted: false, repeatsAnnually: false },
+    ])
+    const people = [
+      source({ id: 'a', leave: { '2026-11-18': 'full' }, companyDays: closure }),
+      source({ id: 'b', leave: { '2026-11-18': 'full' } }),
+    ]
+    expect(cellFor(people, '2026-11-18').people.map((p) => p.personId)).toEqual(['b'])
+  })
 
   it('is empty when no people are passed', () => {
     expect(cellFor([], '2026-11-18').people).toEqual([])

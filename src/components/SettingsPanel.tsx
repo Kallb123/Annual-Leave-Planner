@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { CompanyDaysSection } from './CompanyDaysSection'
 import { DayCountInput } from './DayCountInput'
 import { MONTH_NAMES, daysInMonth } from '../domain/dates'
-import { PERSON_NAME_MAX, REGIONS, type CompanyDay, type Person, type Region, type Settings } from '../domain/types'
+import { PERSON_NAME_MAX, REGIONS, type Company, type Person, type Region, type Settings } from '../domain/types'
 import type { PlannerAction } from '../state/plannerState'
 import { PERSON_COLOURS } from '../theme'
 
@@ -36,11 +36,11 @@ interface Props {
   settings: Settings
   activePerson: Person
   peopleCount: number
-  companyDays: CompanyDay[]
+  company: Company | undefined
   dispatch: (action: PlannerAction) => void
 }
 
-export function SettingsPanel({ collapsible = false, defaultCollapsed = false, settings, activePerson, peopleCount, companyDays, dispatch }: Props) {
+export function SettingsPanel({ collapsible = false, defaultCollapsed = false, settings, activePerson, peopleCount, company, dispatch }: Props) {
   const [collapsed, setCollapsed] = useState(defaultCollapsed)
   const hidden = collapsible && collapsed
   const regionLabel = REGIONS.find((r) => r.id === settings.region)?.label ?? ''
@@ -245,7 +245,7 @@ export function SettingsPanel({ collapsible = false, defaultCollapsed = false, s
             <span>Suggest bridge days (short leave around bank holidays)</span>
           </label>
 
-          <CompanyDaysSection companyDays={companyDays} dispatch={dispatch} />
+          <CompanyDaysSection company={company} dispatch={dispatch} />
         </section>
       </div>
     </section>

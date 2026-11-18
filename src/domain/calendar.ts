@@ -2,7 +2,7 @@ import { daysInMonth, MONTH_NAMES, parseIso, toIso, dayOfWeek, type IsoDate } fr
 import { classifyDay, isBookable, type DayKind } from './allowance'
 import type { BankHolidayIndex } from './bankHolidays'
 import type { CompanyDayIndex } from './companyDays'
-import type { DateRange, LeaveEntries, LeavePortion, Settings } from './types'
+import type { CompanyDay, DateRange, LeaveEntries, LeavePortion, Settings } from './types'
 
 /**
  * Renderer-agnostic description of a leave year. Both the on-screen calendar
@@ -43,6 +43,8 @@ export interface PersonLeaveSource {
   settings: Settings
   leave: LeaveEntries
   overLimit: ReadonlySet<IsoDate>
+  /** That person's company days; they decide which days count as bookable for them. */
+  companyDays: CompanyDayIndex
 }
 
 export interface DayCell {
@@ -59,6 +61,8 @@ export interface DayCell {
   holidayName: string | null
   /** Name of the company day on this date, even when a bank holiday takes precedence. */
   companyDayName: string | null
+  /** The company day on this date in the index passed to `buildYearView`, if any. */
+  companyDay: CompanyDay | null
   isToday: boolean
   /** Booked leave that takes the total over the entitlement (the `overLimit` set, or any person's booking). */
   overLimit: boolean
@@ -114,7 +118,7 @@ function buildMonth(
     if (inRange) {
       for (const p of people) {
         const portion = p.leave[date]
-        if (!portion || !isBookable(date, p.settings, holidays, companyDays)) continue
+        if (!portion || !isBookable(date, p.settings, holidays, p.companyDays)) continue
         dayPeople.push({
           personId: p.id,
           name: p.name,
@@ -125,6 +129,7 @@ function buildMonth(
         })
       }
     }
+    const companyDay = companyDays.get(date) ?? null
     cells.push({
       date,
       day,
@@ -133,7 +138,8 @@ function buildMonth(
       leave: inRange ? (leave[date] ?? null) : null,
       people: dayPeople,
       holidayName: holidays.get(date) ?? null,
-      companyDayName: companyDays.get(date)?.name ?? null,
+      companyDayName: companyDay?.name ?? null,
+      companyDay,
       isToday: date === today,
       overLimit: inRange && (overLimit.has(date) || dayPeople.some((p) => p.overLimit)),
     })
