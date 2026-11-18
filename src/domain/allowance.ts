@@ -1,26 +1,36 @@
 import { dayOfWeek, eachDay, type IsoDate } from './dates'
 import type { BankHolidayIndex } from './bankHolidays'
+import type { CompanyDayIndex } from './companyDays'
 import type { DateRange, LeaveEntries, LeavePortion, Settings } from './types'
 
-export type DayKind = 'working' | 'non-working' | 'bank-holiday'
+export type DayKind = 'working' | 'non-working' | 'bank-holiday' | 'company-day'
 
-/** What kind of day `date` is for this user, ignoring any booked leave. */
+/**
+ * What kind of day `date` is for this user, ignoring any booked leave.
+ *
+ * Precedence: bank holiday, then company day, then the user's working pattern.
+ * So a company day on a bank holiday is a bank holiday, but a company day on a
+ * weekend or non-working day still shows as a company day.
+ */
 export function classifyDay(
   date: IsoDate,
   settings: Pick<Settings, 'workingDays'>,
   holidays: BankHolidayIndex,
+  companyDays: CompanyDayIndex,
 ): DayKind {
   if (holidays.has(date)) return 'bank-holiday'
+  if (companyDays.get(date)) return 'company-day'
   return settings.workingDays.includes(dayOfWeek(date)) ? 'working' : 'non-working'
 }
 
-/** Leave can only be booked on a working day that isn't a bank holiday. */
+/** Leave can only be booked on a working day that isn't a bank holiday or company day. */
 export function isBookable(
   date: IsoDate,
   settings: Pick<Settings, 'workingDays'>,
   holidays: BankHolidayIndex,
+  companyDays: CompanyDayIndex,
 ): boolean {
-  return classifyDay(date, settings, holidays) === 'working'
+  return classifyDay(date, settings, holidays, companyDays) === 'working'
 }
 
 export function portionDays(portion: LeavePortion): number {
@@ -34,7 +44,12 @@ export interface AllowanceSummary {
   booked: number
   /** Bank holidays on working days deducted from the allowance (0 if not deducted). */
   bankHolidaysDeducted: number
-  /** entitlement − booked − bankHolidaysDeducted. May be negative. */
+  /**
+   * Company days on working days that come out of the allowance. A company day
+   * on a bank holiday, weekend or non-working day never deducts.
+   */
+  companyDaysDeducted: number
+  /** entitlement − booked − bankHolidaysDeducted − companyDaysDeducted. May be negative. */
   remaining: number
 }
 
@@ -43,19 +58,28 @@ export function summarise(
   settings: Settings,
   leave: LeaveEntries,
   holidays: BankHolidayIndex,
+  companyDays: CompanyDayIndex,
 ): AllowanceSummary {
   let booked = 0
   let bankHolidaysDeducted = 0
+  let companyDaysDeducted = 0
 
   for (const date of eachDay(range.start, range.end)) {
     const portion = leave[date]
-    if (portion && isBookable(date, settings, holidays)) booked += portionDays(portion)
+    if (portion && isBookable(date, settings, holidays, companyDays)) booked += portionDays(portion)
     if (
       settings.bankHolidaysDeducted &&
       holidays.has(date) &&
       settings.workingDays.includes(dayOfWeek(date))
     ) {
       bankHolidaysDeducted += 1
+    }
+    if (
+      classifyDay(date, settings, holidays, companyDays) === 'company-day' &&
+      companyDays.get(date)?.deducted &&
+      settings.workingDays.includes(dayOfWeek(date))
+    ) {
+      companyDaysDeducted += 1
     }
   }
 
@@ -64,15 +88,17 @@ export function summarise(
     entitlement,
     booked,
     bankHolidaysDeducted,
-    remaining: entitlement - booked - bankHolidaysDeducted,
+    companyDaysDeducted,
+    remaining: entitlement - booked - bankHolidaysDeducted - companyDaysDeducted,
   }
 }
 
 /**
  * Booked dates that take the running total over the entitlement.
  *
- * Walks the leave year chronologically. Bank holiday deductions are fixed, so
- * they count first; each booked bookable day then adds to the total. A day (or
+ * Walks the leave year chronologically. Bank holiday and company day
+ * deductions are fixed, so they count first; each booked bookable day then
+ * adds to the total. A day (or
  * half day) that ends above the entitlement is over, including one that
  * straddles the limit. Only bookable days count, exactly as in `summarise`.
  */
@@ -81,14 +107,21 @@ export function overAllocatedDates(
   settings: Settings,
   leave: LeaveEntries,
   holidays: BankHolidayIndex,
+  companyDays: CompanyDayIndex,
 ): Set<IsoDate> {
-  const { entitlement, bankHolidaysDeducted } = summarise(range, settings, leave, holidays)
+  const { entitlement, bankHolidaysDeducted, companyDaysDeducted } = summarise(
+    range,
+    settings,
+    leave,
+    holidays,
+    companyDays,
+  )
   const over = new Set<IsoDate>()
-  let used = bankHolidaysDeducted
+  let used = bankHolidaysDeducted + companyDaysDeducted
 
   for (const date of eachDay(range.start, range.end)) {
     const portion = leave[date]
-    if (!portion || !isBookable(date, settings, holidays)) continue
+    if (!portion || !isBookable(date, settings, holidays, companyDays)) continue
     used += portionDays(portion)
     if (used > entitlement) over.add(date)
   }

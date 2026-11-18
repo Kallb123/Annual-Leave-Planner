@@ -1,9 +1,11 @@
 import { isBookable } from '../domain/allowance'
 import { bankHolidayIndex } from '../domain/bankHolidays'
+import { companyDayIndex, sanitiseCompanyDay, sanitiseCompanyDays } from '../domain/companyDays'
 import { eachDay, isIsoDate } from '../domain/dates'
 import {
   DEFAULT_SETTINGS,
   REGIONS,
+  type CompanyDay,
   type LeaveEntries,
   type LeavePortion,
   type Settings,
@@ -16,6 +18,8 @@ import {
 export interface PlannerState {
   settings: Settings
   leave: LeaveEntries
+  /** Employer closures and extra holidays, sorted by date. */
+  companyDays: CompanyDay[]
   /** Leave years forward/back from the one containing today. Not persisted. */
   yearOffset: number
 }
@@ -25,6 +29,8 @@ export type PlannerAction =
   | { type: 'cycleLeave'; date: string }
   | { type: 'setLeaveRange'; start: string; end: string; portion: LeavePortion | undefined }
   | { type: 'clearLeaveInRange'; start: string; end: string }
+  | { type: 'addCompanyDay'; day: CompanyDay }
+  | { type: 'removeCompanyDay'; id: string }
   | { type: 'shiftYear'; by: number }
   | { type: 'resetYear' }
 
@@ -55,9 +61,10 @@ export function plannerReducer(state: PlannerState, action: PlannerAction): Plan
       // The holiday index is derived from settings here rather than passed in, so
       // the action stays a plain serialisable value.
       const holidays = bankHolidayIndex(state.settings.region)
+      const companyDays = companyDayIndex(state.companyDays)
       const leave = { ...state.leave }
       for (const date of eachDay(from, to)) {
-        if (!isBookable(date, state.settings, holidays)) continue
+        if (!isBookable(date, state.settings, holidays, companyDays)) continue
         if (action.portion) leave[date] = action.portion
         else delete leave[date]
       }
@@ -69,6 +76,14 @@ export function plannerReducer(state: PlannerState, action: PlannerAction): Plan
       )
       return { ...state, leave }
     }
+    case 'addCompanyDay': {
+      // Invalid input and duplicate ids are ignored; the UI validates first.
+      const day = sanitiseCompanyDay(action.day)
+      if (!day || state.companyDays.some((d) => d.id === day.id)) return state
+      return { ...state, companyDays: sanitiseCompanyDays([...state.companyDays, day]) }
+    }
+    case 'removeCompanyDay':
+      return { ...state, companyDays: state.companyDays.filter((d) => d.id !== action.id) }
     case 'shiftYear':
       return { ...state, yearOffset: state.yearOffset + action.by }
     case 'resetYear':
@@ -81,29 +96,47 @@ export function plannerReducer(state: PlannerState, action: PlannerAction): Plan
 // ---------------------------------------------------------------------------
 
 export const STORAGE_KEY = 'annual-leave-planner'
-const SCHEMA_VERSION = 1
+const SCHEMA_VERSION = 2
 
-interface StoredStateV1 {
-  version: 1
+/**
+ * Stored shape history:
+ * - v1: `{ version, settings, leave }`
+ * - v2: adds `companyDays`
+ */
+interface StoredStateV2 {
+  version: 2
   settings: Settings
   leave: LeaveEntries
+  companyDays: CompanyDay[]
 }
+
+type StoredContent = Omit<StoredStateV2, 'version'>
 
 export function initialState(storage: Storage | undefined = safeLocalStorage()): PlannerState {
   const stored = storage ? readStored(storage) : null
   return {
     settings: stored?.settings ?? DEFAULT_SETTINGS,
     leave: stored?.leave ?? {},
+    companyDays: stored?.companyDays ?? [],
     yearOffset: 0,
   }
 }
 
+/**
+ * True when storage already holds valid saved planner data (a returning user).
+ * Call it before the first `persist`, which would otherwise make every visit look returning.
+ */
+export function hasSavedState(storage: Storage | undefined = safeLocalStorage()): boolean {
+  return storage ? readStored(storage) !== null : false
+}
+
 export function persist(state: PlannerState, storage: Storage | undefined = safeLocalStorage()) {
   if (!storage) return
-  const payload: StoredStateV1 = {
+  const payload: StoredStateV2 = {
     version: SCHEMA_VERSION,
     settings: state.settings,
     leave: state.leave,
+    companyDays: state.companyDays,
   }
   try {
     storage.setItem(STORAGE_KEY, JSON.stringify(payload))
@@ -112,19 +145,30 @@ export function persist(state: PlannerState, storage: Storage | undefined = safe
   }
 }
 
-function readStored(storage: Storage): Omit<StoredStateV1, 'version'> | null {
+function readStored(storage: Storage): StoredContent | null {
   try {
     const raw = storage.getItem(STORAGE_KEY)
     if (!raw) return null
-    const parsed = JSON.parse(raw) as Partial<StoredStateV1>
-    // Future schema versions add migrations here, keyed on `parsed.version`.
-    if (parsed.version !== SCHEMA_VERSION) return null
-    return {
-      settings: sanitiseSettings({ ...DEFAULT_SETTINGS, ...parsed.settings }),
-      leave: sanitiseLeave(parsed.leave),
-    }
+    return migrateStored(JSON.parse(raw))
   } catch {
     return null
+  }
+}
+
+/**
+ * Bring any known stored version up to the current shape, validating every
+ * field. Returns null for unknown versions or non-objects. Add a case here
+ * whenever SCHEMA_VERSION is bumped.
+ */
+export function migrateStored(parsed: unknown): StoredContent | null {
+  if (!parsed || typeof parsed !== 'object') return null
+  const p = parsed as { version?: unknown; settings?: unknown; leave?: unknown; companyDays?: unknown }
+  if (p.version !== 1 && p.version !== 2) return null
+  return {
+    settings: sanitiseSettings({ ...DEFAULT_SETTINGS, ...(p.settings as Partial<Settings>) }),
+    leave: sanitiseLeave(p.leave),
+    // v1 had no company days, so `companyDays` is simply absent and becomes [].
+    companyDays: sanitiseCompanyDays(p.version === 1 ? [] : p.companyDays),
   }
 }
 
@@ -158,6 +202,8 @@ export function sanitiseSettings(s: Settings, d: Settings = DEFAULT_SETTINGS): S
     region: REGIONS.some((r) => r.id === s.region) ? s.region : d.region,
     workingDays,
     bankHolidaysDeducted: typeof s.bankHolidaysDeducted === 'boolean' ? s.bankHolidaysDeducted : d.bankHolidaysDeducted,
+    showBridgeSuggestions:
+      typeof s.showBridgeSuggestions === 'boolean' ? s.showBridgeSuggestions : d.showBridgeSuggestions,
   }
 }
 

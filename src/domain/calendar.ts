@@ -1,6 +1,7 @@
 import { daysInMonth, MONTH_NAMES, parseIso, toIso, dayOfWeek, type IsoDate } from './dates'
 import { classifyDay, type DayKind } from './allowance'
 import type { BankHolidayIndex } from './bankHolidays'
+import type { CompanyDayIndex } from './companyDays'
 import type { DateRange, LeaveEntries, LeavePortion, Settings } from './types'
 
 /**
@@ -29,6 +30,8 @@ export interface DayCell {
   inRange: boolean
   leave: LeavePortion | null
   holidayName: string | null
+  /** Name of the company day on this date, even when a bank holiday takes precedence. */
+  companyDayName: string | null
   isToday: boolean
   /** Booked leave that takes the total over the entitlement. */
   overLimit: boolean
@@ -39,6 +42,7 @@ export function buildYearView(
   settings: Pick<Settings, 'workingDays'>,
   leave: LeaveEntries,
   holidays: BankHolidayIndex,
+  companyDays: CompanyDayIndex,
   today: IsoDate | null = null,
   overLimit: ReadonlySet<IsoDate> = new Set(),
 ): YearView {
@@ -48,7 +52,7 @@ export function buildYearView(
 
   let { year, month } = start
   while (year < end.year || (year === end.year && month <= end.month)) {
-    months.push(buildMonth(year, month, range, settings, leave, holidays, today, overLimit))
+    months.push(buildMonth(year, month, range, settings, leave, holidays, companyDays, today, overLimit))
     month += 1
     if (month > 12) {
       month = 1
@@ -65,6 +69,7 @@ function buildMonth(
   settings: Pick<Settings, 'workingDays'>,
   leave: LeaveEntries,
   holidays: BankHolidayIndex,
+  companyDays: CompanyDayIndex,
   today: IsoDate | null,
   overLimit: ReadonlySet<IsoDate>,
 ): MonthView {
@@ -79,10 +84,11 @@ function buildMonth(
     cells.push({
       date,
       day,
-      kind: classifyDay(date, settings, holidays),
+      kind: classifyDay(date, settings, holidays, companyDays),
       inRange,
       leave: inRange ? (leave[date] ?? null) : null,
       holidayName: holidays.get(date) ?? null,
+      companyDayName: companyDays.get(date)?.name ?? null,
       isToday: date === today,
       overLimit: inRange && overLimit.has(date),
     })

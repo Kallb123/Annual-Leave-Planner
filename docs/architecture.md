@@ -14,14 +14,15 @@
 
 - **Vite + React + TypeScript** – fast builds, static output, widely supported by both hosts.
 - **Vitest** for unit tests, **oxlint** for linting.
-- **No runtime dependencies** beyond React. Date handling and PNG export are hand-written (small and fully tested) rather than pulling in `date-fns`/`html2canvas`.
+- **No runtime dependencies** beyond React, and no PWA plugin either (see "Offline and updates"). Date handling and PNG export are hand-written (small and fully tested) rather than pulling in `date-fns`/`html2canvas`.
 
 ## High-level flow
 
 ```
                 ┌──────────────────────────┐
  user input ──▶ │ state/plannerState.ts    │  reducer + validation + localStorage
-                │  { settings, leave }     │
+                │  { settings, leave,      │
+                │    companyDays }         │
                 └────────────┬─────────────┘
                              │
                 ┌────────────▼─────────────┐
@@ -50,24 +51,29 @@ No React, no DOM, no globals. Everything here is deterministic and unit tested.
 - **`dates.ts`**: all dates are ISO strings (`YYYY-MM-DD`). Arithmetic goes through UTC so results never shift with the user's timezone or daylight saving changes. ISO strings sort lexicographically, so range checks are plain string comparisons.
 - **`leaveYear.ts`**: works out the leave year containing a date, or starting in a given year, from the configured start month and day. A start day past the end of the month is clamped (so 30 February becomes 28 or 29 February).
 - **`bankHolidays.ts`**: loads the bundled GOV.UK snapshot, indexes it by date for the selected region, and reports whether a leave year is fully covered by the data.
-- **`allowance.ts`**: classifies each day as `working`, `non-working` or `bank-holiday`, and computes the `AllowanceSummary` (entitlement, booked, bank holidays deducted, remaining).
+- **`companyDays.ts`**: the `CompanyDayIndex` lookup (exact-date and repeating days), input validation and sanitising of stored company days. A repeating day matches the same month and day in any year, so a repeating 29 February only occurs in leap years.
+- **`allowance.ts`**: classifies each day as `working`, `non-working`, `bank-holiday` or `company-day`, and computes the `AllowanceSummary` (entitlement, booked, bank holidays deducted, company days deducted, remaining). Precedence is bank holiday, then company day, then working pattern. Company days replace a working day, so they aren't bookable. They are shown on any day of the week but only deduct from the allowance when they fall on one of the user's working days and not on a bank holiday.
+- **`bridges.ts`**: `findBridges()` suggests "bridge" runs of 1–4 bookable days between days off. A day is off if `classifyDay` says it isn't a working day, or it is booked as full leave (half days don't count as off). A run needs off days directly on both sides, and at least one side's off-block must contain a bank holiday or company day, so ordinary weeks between weekends are never suggested. `totalDaysOff` walks the off-blocks outwards, past the leave year if needed. Runs must lie inside the leave year and not start before today (passed in). Sorted by days off per leave day, then total days off, then date.
 - **`calendar.ts`**: builds a `YearView`, a list of months, each a grid of Monday-first weeks of `DayCell`s. This is the **single model both renderers draw from**, so the screen and the PNG can't disagree.
 
 ### `src/state/` – application state
 
-- **Persisted state** is just `{ settings, leave }`. Everything else is derived.
+- **Persisted state** is just `{ settings, leave, companyDays }`. Everything else is derived.
 - `leave` is a map of `IsoDate → 'full' | 'half'`, **independent of leave years**. Changing the reset date regroups existing bookings into new leave years rather than losing them.
 - Leave stored on a day that later becomes unbookable (for example after changing working days) stays stored but isn't counted or shown. Changing the setting back brings it back.
-- `localStorage` holds a versioned envelope (`{ version: 1, settings, leave }`). Loading validates every field and falls back to defaults on anything unexpected. Future schema changes add a migration keyed on `version`.
+- `localStorage` holds a versioned envelope (`{ version: 2, settings, leave, companyDays }`). Loading validates every field and falls back to defaults on anything unexpected. `migrateStored()` upgrades older versions (v1 had no company days and loads with an empty list). Adding a field to `Settings` needs no version bump, because stored settings are merged over `DEFAULT_SETTINGS` and sanitised on load (for example `showBridgeSuggestions` defaults to on for older data); future schema changes add a case there.
 - `usePlanner()` is the only hook components need. It returns state, `dispatch` and the memoised derived data.
 
 ### `src/components/` – React UI
 
 Presentational components that render props and dispatch actions. They contain no date or allowance logic.
 
-- `SettingsPanel`: allowance, carry-over, leave-year start, region, working days, bank-holiday deduction.
+- `SettingsPanel`: allowance, carry-over, leave-year start, region, working days, bank-holiday deduction, and the `CompanyDaysSection` (list, remove and add company days).
 - `YearCalendar`: months and days. Each day is a `<button>`, disabled when the day isn't bookable, with an `aria-label` and holiday names in the `title`.
+- `BridgeSuggestions`: the top five suggestions with a Book button (dispatches `setLeaveRange` with `'full'`). `YearCalendar` takes an optional `bridgeByDate` map and adds a dotted `day--bridge` outline and a tooltip. Suggestions are screen-only: the PNG renderer ignores them, and the on-screen `Legend` adds its bridge entry separately from the shared `legendItems`. They are controlled by the `showBridgeSuggestions` setting.
 - `SummaryBar`, `Legend`.
+
+**Small screens.** Below 860px (`useMediaQuery`) `SettingsPanel` becomes collapsible (`aria-expanded`/`aria-controls`). It starts collapsed for returning users (`hasSavedState()` from `plannerState.ts`, read once before the first persist) and open for first-time users; no schema change. Under 600px the calendar is one month per row with fluid columns and the toolbar is a two-row grid. Under `@media (pointer: coarse)` every control is at least 44px, and day cells use `touch-action: pan-y` so vertical swipes still scroll the page while horizontal drags along a week select a range (pointercancel aborts the drag). Cells are 44px wide from about 352px viewports up; at 320px they stay 44px tall and shrink to about 39px wide rather than scroll sideways.
 
 ### `src/export/` – PNG export
 
@@ -79,6 +85,18 @@ Presentational components that render props and dispatch actions. They contain n
 ### `src/theme.ts` – shared palette
 
 The palette is defined once in TypeScript. On startup `applyPaletteToCss()` writes it to CSS custom properties (`--c-leave`, …) for the UI, and the canvas renderer reads the same object, so colours always match.
+
+## Offline and updates (PWA)
+
+The app is installable (`public/manifest.webmanifest`, icons in `public/icons/`, iOS meta tags in `index.html`) and works offline after the first visit.
+
+- **Build.** `vite-plugins/pwa.ts` runs after `vite build` (production only). It lists every file in `dist/` except `sw.js`, `_headers` and source maps, hashes their contents into a version, and writes `dist/sw.js` from `vite-plugins/sw.template.js`. Any change to any file therefore changes the worker, which is how browsers notice a new deploy. The pure helpers (`precache.ts`) are unit tested. URLs are relative to the worker's scope, so a different Vite `base` still works.
+- **Worker.** `install` precaches the build into cache `alp-<version>` and does not skip waiting. `activate` deletes older `alp-*` caches and claims open pages. Navigations are network-first, falling back to the cached `index.html` offline, so a new deploy shows up on the next load when online. Other same-origin GETs are cache-first. A `SKIP_WAITING` message activates a waiting worker.
+- **Update flow.** `src/pwa/registerServiceWorker.ts` registers `sw.js` in production only. If a new worker installs (or is already waiting) while an existing worker controls the page, it goes into `updateStore`, which `UpdateBanner` reads with `useSyncExternalStore`. The banner (`role="status"`) shows "Update available" and a Reload button that sends `SKIP_WAITING`. On `controllerchange` the page reloads once; this is skipped on the very first install, and guarded so it can't loop. The page also calls `registration.update()` when it becomes visible again and hourly (at most once a minute).
+- **Hosting.** `sw.js`, `index.html` and the manifest must be served with `no-cache`, and `/assets/*` as immutable (`public/_headers`, `vercel.json`; see deployment docs).
+- **Icons.** SVG sources are in `scripts/icons/`; `npm run generate-icons` renders the PNGs with Playwright. The PNGs are committed, so the build doesn't need it.
+
+**Why hand-written?** The worker is about 60 lines and the app has one static page, so `vite-plugin-pwa`/Workbox would add a dependency (and a risk with new Vite majors) for routing features we don't need. The trade-off is that cache behaviour is ours to maintain.
 
 ## Bank holiday data pipeline
 
@@ -100,6 +118,7 @@ GOV.UK /bank-holidays.json ──(scripts/update-bank-holidays.mjs)──▶ src
 | `localStorage` | Backend + accounts | Zero hosting cost, private, works on static hosts |
 | Canvas PNG renderer | DOM screenshot libraries | Deterministic output, no dependency, layout independent of screen |
 | Build-time bank holiday snapshot | Runtime fetch from GOV.UK | Offline, no CORS risk, faster first load |
+| Hand-written service worker | `vite-plugin-pwa`, Workbox | Tiny, no dependency, full control over the update prompt |
 | Monday-first weeks | Locale-dependent | UK-focused audience; can become a setting later |
 
 ## Testing

@@ -15,6 +15,9 @@ export function SummaryBar({ summary, warning = null }: Props) {
     ...(summary.bankHolidaysDeducted
       ? [{ label: 'Bank holidays', value: summary.bankHolidaysDeducted }]
       : []),
+    ...(summary.companyDaysDeducted
+      ? [{ label: 'Company days', value: summary.companyDaysDeducted }]
+      : []),
     { label: 'Remaining', value: summary.remaining, warn: summary.remaining < 0 },
   ]
   // One persistent live region wraps both the figures and the warning, so a

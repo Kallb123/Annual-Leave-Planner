@@ -1,20 +1,31 @@
 import { useCallback, useState } from 'react'
+import { BridgeSuggestions } from './components/BridgeSuggestions'
 import { SettingsPanel } from './components/SettingsPanel'
 import { SummaryBar } from './components/SummaryBar'
+import { UpdateBanner } from './components/UpdateBanner'
 import { Legend, YearCalendar } from './components/YearCalendar'
+import type { Bridge } from './domain/bridges'
 import { REGIONS, type LeavePortion } from './domain/types'
 import { downloadCanvasAsPng } from './export/download'
 import { renderYearToCanvas } from './export/renderPng'
+import { useMediaQuery } from './hooks/useMediaQuery'
 import { usePlanner } from './state/usePlanner'
 
 export default function App() {
-  const { state, dispatch, range, label, yearView, summary, overEntitlementWarning, hasBankHolidayData } = usePlanner()
+  const { state, hadSavedState, dispatch, range, label, yearView, summary, bridges, bridgeByDate, overEntitlementWarning, hasBankHolidayData } = usePlanner()
+  // Same breakpoint as the single-column layout in styles.css.
+  const smallScreen = useMediaQuery('(max-width: 860px)')
   const [exporting, setExporting] = useState(false)
 
   const toggleDay = useCallback((date: string) => dispatch({ type: 'cycleLeave', date }), [dispatch])
   const setRange = useCallback(
     (start: string, end: string, portion: LeavePortion | undefined) =>
       dispatch({ type: 'setLeaveRange', start, end, portion }),
+    [dispatch],
+  )
+
+  const bookBridge = useCallback(
+    (b: Bridge) => dispatch({ type: 'setLeaveRange', start: b.start, end: b.end, portion: 'full' }),
     [dispatch],
   )
 
@@ -37,14 +48,15 @@ export default function App() {
 
   return (
     <div className="app">
+      <UpdateBanner />
       <header className="app-header">
         <h1>Annual Leave Planner</h1>
-        <p className="tagline">Click a working day to book leave, again for a half day, and again to clear. Shift-click or drag to book or clear a range.</p>
+        <p className="tagline">Click or tap a working day to book leave, again for a half day, and again to clear. Shift-click or drag (swipe sideways on touch screens) to book or clear a range.</p>
       </header>
 
       <div className="layout">
         <aside>
-          <SettingsPanel settings={state.settings} dispatch={dispatch} />
+          <SettingsPanel collapsible={smallScreen} defaultCollapsed={hadSavedState} settings={state.settings} companyDays={state.companyDays} dispatch={dispatch} />
         </aside>
 
         <main className="panel">
@@ -58,7 +70,7 @@ export default function App() {
                 ›
               </button>
               {state.yearOffset !== 0 && (
-                <button type="button" className="link" onClick={() => dispatch({ type: 'resetYear' })}>
+                <button type="button" className="link year-nav-reset" onClick={() => dispatch({ type: 'resetYear' })}>
                   Current year
                 </button>
               )}
@@ -89,8 +101,10 @@ export default function App() {
             </p>
           )}
 
-          <YearCalendar view={yearView} onToggleDay={toggleDay} onSetRange={setRange} />
-          <Legend />
+          <BridgeSuggestions bridges={bridges} onBook={bookBridge} />
+
+          <YearCalendar view={yearView} bridgeByDate={bridgeByDate} onToggleDay={toggleDay} onSetRange={setRange} />
+          <Legend showBridge={bridges.length > 0} />
         </main>
       </div>
     </div>

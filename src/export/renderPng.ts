@@ -129,6 +129,9 @@ function drawHeader(ctx: CanvasRenderingContext2D, meta: ExportMeta, layout: Lay
     ...(s.bankHolidaysDeducted
       ? [{ text: `Bank holidays ${fmt(s.bankHolidaysDeducted)}`, color: palette.text }]
       : []),
+    ...(s.companyDaysDeducted
+      ? [{ text: `Company days ${fmt(s.companyDaysDeducted)}`, color: palette.text }]
+      : []),
     { text: `Remaining ${fmt(s.remaining)}`, color: s.remaining < 0 ? palette.warn : palette.text },
   ]
   // Drawn right to left from the right edge so each part can have its own colour.
@@ -195,6 +198,7 @@ function cellFill(cell: DayCell): string | null {
   if (cell.leave === 'full') return palette.leave
   if (cell.leave === 'half') return palette.leaveHalf
   if (cell.kind === 'bank-holiday') return palette.bankHoliday
+  if (cell.kind === 'company-day') return palette.companyDay
   if (cell.kind === 'non-working') return palette.nonWorking
   return null
 }

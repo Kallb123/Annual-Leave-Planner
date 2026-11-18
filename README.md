@@ -2,11 +2,14 @@
 
 A small web app for planning annual leave across a leave year and downloading the result as a PNG.
 
-- **Plan visually.** Click a working day to book a full day, click again for a half day, and once more to clear it. Shift-click or drag (mouse or touch) to book or clear a whole range; weekends, non-working days and bank holidays are skipped.
+- **Plan visually.** Click a working day to book a full day, click again for a half day, and once more to clear it. Shift-click or drag (mouse, or swipe sideways on touch screens) to book or clear a whole range; weekends, non-working days and bank holidays are skipped.
 - **Your leave year.** Set your allowance, any carried-over days, and the date your leave year resets (for example 1 January or 1 April).
 - **UK bank holidays.** Bank holidays for England & Wales, Scotland or Northern Ireland are shown automatically. You can also count them against your allowance if your contract does.
+- **Company days.** Add office closures and extra days off (for example "24 December, every year"). Choose whether each one comes out of your allowance. They get their own colour and can't be booked.
+- **Bridge suggestions.** Spots short runs of working days between bank holidays, company days and weekends, and shows how many days off in a row booking them would give (for example "Book 3 days, get 10 days off"). They get a dotted outline on the calendar and a list with a one-click Book button. Switch them off in the settings; they never appear in the PNG.
 - **Part-time friendly.** Choose which days of the week you work. Leave can only be booked on working days.
 - **Export.** Download the whole leave year, with leave, bank holidays and a summary, as a high-resolution PNG.
+- **Installable and offline.** It's a Progressive Web App: install it from your browser (or add it to your home screen on iOS) and it keeps working with no connection after the first visit. When a new version is deployed, an "Update available" banner offers a one-click reload.
 - **Private by default.** There's no backend and no account. Everything is stored in your browser's `localStorage`.
 
 ## Getting started
@@ -32,10 +35,11 @@ Then open http://localhost:5173.
 | `npm run lint` | Lint with oxlint |
 | `npm run typecheck` | Type-check only |
 | `npm run update-bank-holidays` | Refresh `src/data/bank-holidays.json` from GOV.UK |
+| `npm run generate-icons` | Re-render the PNG app icons from `scripts/icons/*.svg` (needs Playwright) |
 
 ## Deploying
 
-The app builds to static files in `dist/`, so it runs on any static host. Vercel and Cloudflare Pages work with no config files:
+The app builds to static files in `dist/`, so it runs on any static host. Vercel and Cloudflare Pages work with no extra setup. `vercel.json` and `public/_headers` set the cache headers that let updates through (see [docs/deployment.md](docs/deployment.md)):
 
 | | Vercel | Cloudflare Pages |
 | --- | --- | --- |
@@ -55,8 +59,10 @@ src/
   components/    React UI
   export/        Canvas PNG renderer and download helper
   data/          Bundled bank holiday snapshot (from GOV.UK)
+  pwa/           Service worker registration and update-available state
   theme.ts       Shared colour palette for the UI and the PNG
-scripts/         Build-time tooling (bank holiday refresh)
+vite-plugins/   Build plugin that writes the service worker (sw.js) with the precache list
+scripts/         Build-time tooling (bank holiday refresh, icon generation)
 docs/            Architecture, plan and deployment notes
 ```
 
