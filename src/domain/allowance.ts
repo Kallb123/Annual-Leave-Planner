@@ -1,7 +1,8 @@
-import { dayOfWeek, eachDay, type IsoDate } from './dates'
+import { eachDay, type IsoDate } from './dates'
 import type { BankHolidayIndex } from './bankHolidays'
 import type { CompanyDayIndex } from './companyDays'
 import type { DateRange, LeaveEntries, LeavePortion, Settings } from './types'
+import { worksOn, type WorkPattern } from './workPattern'
 
 export type DayKind = 'working' | 'non-working' | 'bank-holiday' | 'company-day'
 
@@ -14,19 +15,19 @@ export type DayKind = 'working' | 'non-working' | 'bank-holiday' | 'company-day'
  */
 export function classifyDay(
   date: IsoDate,
-  settings: Pick<Settings, 'workingDays'>,
+  settings: WorkPattern,
   holidays: BankHolidayIndex,
   companyDays: CompanyDayIndex,
 ): DayKind {
   if (holidays.has(date)) return 'bank-holiday'
   if (companyDays.get(date)) return 'company-day'
-  return settings.workingDays.includes(dayOfWeek(date)) ? 'working' : 'non-working'
+  return worksOn(settings, date) ? 'working' : 'non-working'
 }
 
 /** Leave can only be booked on a working day that isn't a bank holiday or company day. */
 export function isBookable(
   date: IsoDate,
-  settings: Pick<Settings, 'workingDays'>,
+  settings: WorkPattern,
   holidays: BankHolidayIndex,
   companyDays: CompanyDayIndex,
 ): boolean {
@@ -70,14 +71,14 @@ export function summarise(
     if (
       settings.bankHolidaysDeducted &&
       holidays.has(date) &&
-      settings.workingDays.includes(dayOfWeek(date))
+      worksOn(settings, date)
     ) {
       bankHolidaysDeducted += 1
     }
     if (
       classifyDay(date, settings, holidays, companyDays) === 'company-day' &&
       companyDays.get(date)?.deducted &&
-      settings.workingDays.includes(dayOfWeek(date))
+      worksOn(settings, date)
     ) {
       companyDaysDeducted += 1
     }

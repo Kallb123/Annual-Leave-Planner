@@ -23,6 +23,16 @@ export interface Settings {
   /** Days of the week the user normally works. 0 = Sunday … 6 = Saturday. */
   workingDays: number[]
   /**
+   * Days worked in week 2 of a fortnightly pattern (0 = Sunday … 6 = Saturday),
+   * or null when every week is the same. `workingDays` is then week 1.
+   */
+  workingDaysWeek2: number[] | null
+  /**
+   * A Monday that begins a "week 1". Only matters when `workingDaysWeek2` is set:
+   * weeks alternate 1, 2, 1, 2 … counting from this Monday's week.
+   */
+  fortnightStart: IsoDate
+  /**
    * When true, bank holidays falling on working days are deducted from the
    * allowance (e.g. "28 days including bank holidays").
    */
@@ -38,16 +48,25 @@ export const DEFAULT_SETTINGS: Settings = {
   leaveYearStartDay: 1,
   region: 'england-and-wales',
   workingDays: [1, 2, 3, 4, 5],
+  workingDaysWeek2: null,
+  fortnightStart: '2026-01-05', // a Monday
   bankHolidaysDeducted: false,
   showBridgeSuggestions: true,
 }
 
 /** Settings that belong to one person rather than the whole planner. */
-export const PERSON_SETTING_KEYS = ['allowanceDays', 'carryOverDays', 'workingDays', 'bankHolidaysDeducted'] as const
+export const PERSON_SETTING_KEYS = [
+  'allowanceDays',
+  'carryOverDays',
+  'workingDays',
+  'workingDaysWeek2',
+  'fortnightStart',
+  'bankHolidaysDeducted',
+] as const
 
 export type PersonSettingKey = (typeof PERSON_SETTING_KEYS)[number]
 
-/** Per-person part of `Settings`: allowance, carry-over, working pattern, bank-holiday deduction. */
+/** Per-person part of `Settings`: allowance, carry-over, working pattern (weekly or fortnightly), bank-holiday deduction. */
 export type PersonSettings = Pick<Settings, PersonSettingKey>
 
 /** Planner-wide part of `Settings`: leave year start, region, bridge suggestions. */
@@ -57,6 +76,8 @@ export const DEFAULT_PERSON_SETTINGS: PersonSettings = {
   allowanceDays: DEFAULT_SETTINGS.allowanceDays,
   carryOverDays: DEFAULT_SETTINGS.carryOverDays,
   workingDays: DEFAULT_SETTINGS.workingDays,
+  workingDaysWeek2: DEFAULT_SETTINGS.workingDaysWeek2,
+  fortnightStart: DEFAULT_SETTINGS.fortnightStart,
   bankHolidaysDeducted: DEFAULT_SETTINGS.bankHolidaysDeducted,
 }
 

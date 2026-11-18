@@ -2,7 +2,8 @@ import { addDays, parseIso, MONTH_NAMES, type IsoDate } from './dates'
 import { classifyDay, formatDays } from './allowance'
 import type { BankHolidayIndex } from './bankHolidays'
 import type { CompanyDayIndex } from './companyDays'
-import type { DateRange, LeaveEntries, Settings } from './types'
+import type { DateRange, LeaveEntries } from './types'
+import type { WorkPattern } from './workPattern'
 
 /**
  * "Bridge" suggestions: short runs of working days sitting between days off,
@@ -47,7 +48,7 @@ export interface FindBridgesInput {
   range: DateRange
   /** Runs starting before this date are left out. */
   today: IsoDate
-  settings: Pick<Settings, 'workingDays'>
+  settings: WorkPattern
   leave: LeaveEntries
   holidays: BankHolidayIndex
   companyDays: CompanyDayIndex

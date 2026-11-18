@@ -25,6 +25,7 @@ import {
   migrateStored,
   parsePlan,
   persist,
+  sanitiseSettings,
   serialisePlan,
   personSettings,
   plannerReducer,
@@ -79,8 +80,11 @@ function single(opts: { leave?: LeaveEntries; settings?: Partial<Settings>; comp
 }
 
 function splitForTest(s: Settings) {
-  const { allowanceDays, carryOverDays, workingDays, bankHolidaysDeducted, ...shared } = s
-  return { shared, person: { allowanceDays, carryOverDays, workingDays, bankHolidaysDeducted } }
+  const { allowanceDays, carryOverDays, workingDays, workingDaysWeek2, fortnightStart, bankHolidaysDeducted, ...shared } = s
+  return {
+    shared,
+    person: { allowanceDays, carryOverDays, workingDays, workingDaysWeek2, fortnightStart, bankHolidaysDeducted },
+  }
 }
 
 const leaveOf = (s: PlannerState, id = s.activePersonId) => s.people.find((p) => p.id === id)!.leave
@@ -381,6 +385,21 @@ describe('plannerReducer', () => {
       expect(effective(s).workingDays).toEqual([1, 5])
     })
 
+    it('sets and clears a fortnightly pattern on the active person only', () => {
+      const set = plannerReducer(twoPeople, {
+        type: 'updateSettings',
+        patch: { workingDaysWeek2: [4, 1, 1, 2, 3], fortnightStart: '2026-11-18' },
+      })
+      const a = activePerson(set)
+      expect(a.workingDaysWeek2).toEqual([1, 2, 3, 4])
+      expect(a.fortnightStart).toBe('2026-11-16') // normalised to a Monday
+      expect(set.people.find((p) => p.id !== a.id)!.workingDaysWeek2).toBeNull()
+      expect(personSettings(set.shared, a)).toMatchObject({ workingDaysWeek2: [1, 2, 3, 4], fortnightStart: '2026-11-16' })
+      const cleared = plannerReducer(set, { type: 'updateSettings', patch: { workingDaysWeek2: null } })
+      expect(activePerson(cleared).workingDaysWeek2).toBeNull()
+      expect(activePerson(cleared).fortnightStart).toBe('2026-11-16')
+    })
+
     it('keeps the previous value when a number input is cleared (NaN)', () => {
       const s = plannerReducer(single({ settings: { allowanceDays: 30 } }), {
         type: 'updateSettings',
@@ -522,7 +541,7 @@ describe('persistence', () => {
     }
     persist(state, storage)
     const saved = JSON.parse(storage.getItem(STORAGE_KEY)!)
-    expect(saved.version).toBe(4)
+    expect(saved.version).toBe(5)
     expect(saved).not.toHaveProperty('editingCompanyId')
     expect(saved).not.toHaveProperty('companyDays')
     expect(initialState(storage)).toEqual({ ...state, editingCompanyId: null, yearOffset: 0 })
@@ -622,12 +641,12 @@ describe('persistence', () => {
       expect(restored.people[0].companyId).toBe('company-1')
     })
 
-    it('rewrites as v4 on the next persist', () => {
+    it('rewrites as v5 on the next persist', () => {
       const storage = new MemoryStorage()
       storage.setItem(STORAGE_KEY, JSON.stringify(v1))
       persist(initialState(storage), storage)
       const saved = JSON.parse(storage.getItem(STORAGE_KEY)!)
-      expect(saved.version).toBe(4)
+      expect(saved.version).toBe(5)
       expect(saved.companies).toEqual([{ id: 'company-1', name: 'My company', days: [] }])
       expect(saved.people[0].leave).toEqual(v1.leave)
       expect(saved).not.toHaveProperty('settings')
@@ -845,10 +864,10 @@ describe('plan import/export', () => {
     }
     expect(reason('{nope')).toBe('not-json')
     expect(reason('')).toBe('not-json')
-    for (const json of ['null', '42', '"plan"', '[]', '{}', '{"version":0}', '{"version":"4"}']) {
+    for (const json of ['null', '42', '"plan"', '[]', '{}', '{"version":0}', '{"version":"5"}']) {
       expect(reason(json)).toBe('not-a-plan')
     }
-    expect(reason('{"version":5}')).toBe('newer-version')
+    expect(reason('{"version":6}')).toBe('newer-version')
     const newer = parsePlan('{"version":99}')
     expect(!newer.ok && newer.message).toMatch(/newer version/)
   })
@@ -894,5 +913,60 @@ describe('plan import/export', () => {
 
   it('describes a plan for the import confirmation', () => {
     expect(describePlan(state)).toBe('2 people (Alice, Bob), 2.5 days booked, 2 companies with 1 company day')
+  })
+})
+
+describe('fortnightly working pattern', () => {
+  it('sanitises workingDaysWeek2 and fortnightStart', () => {
+    const clean = (patch: object) => sanitiseSettings({ ...DEFAULT_SETTINGS, ...patch } as Settings)
+    expect(clean({ workingDaysWeek2: [4, 1, 1, 9, -1, 2.5, 2] }).workingDaysWeek2).toEqual([1, 2, 4])
+    expect(clean({ workingDaysWeek2: [] }).workingDaysWeek2).toEqual([])
+    expect(clean({ workingDaysWeek2: null }).workingDaysWeek2).toBeNull()
+    expect(clean({ workingDaysWeek2: 'Mon' }).workingDaysWeek2).toBeNull()
+    expect(clean({ fortnightStart: '2026-11-18' }).fortnightStart).toBe('2026-11-16')
+    expect(clean({ fortnightStart: '2026-11-22' }).fortnightStart).toBe('2026-11-16')
+    expect(clean({ fortnightStart: '2026-02-30' }).fortnightStart).toBe(DEFAULT_SETTINGS.fortnightStart)
+    expect(clean({ fortnightStart: 5 }).fortnightStart).toBe(DEFAULT_SETTINGS.fortnightStart)
+    const prev = { ...DEFAULT_SETTINGS, workingDaysWeek2: [1], fortnightStart: '2026-11-09' }
+    expect(sanitiseSettings({ ...prev, workingDaysWeek2: 7 as never, fortnightStart: 'x' }, prev)).toMatchObject({
+      workingDaysWeek2: [1],
+      fortnightStart: '2026-11-09',
+    })
+  })
+
+  it('migrates v4 data with the weekly defaults', () => {
+    const m = migrateStored({
+      version: 4,
+      shared: {},
+      people: [{ id: 'a', name: 'A', workingDays: [1, 2, 3] }],
+      activePersonId: 'a',
+      companies: [],
+    })!
+    expect(m.people[0]).toMatchObject({
+      workingDays: [1, 2, 3],
+      workingDaysWeek2: null,
+      fortnightStart: DEFAULT_SETTINGS.fortnightStart,
+    })
+  })
+
+  it('reads v5 data and round-trips through serialisePlan', () => {
+    const person = { ...alice, workingDaysWeek2: [1, 2, 3, 4], fortnightStart: '2026-11-16' }
+    const state: PlannerState = { ...base, people: [person], activePersonId: person.id }
+    const json = serialisePlan(state)
+    expect(JSON.parse(json).version).toBe(5)
+    const parsed = parsePlan(json)
+    expect(parsed.ok && parsed.plan.people[0]).toMatchObject({ workingDaysWeek2: [1, 2, 3, 4], fortnightStart: '2026-11-16' })
+  })
+
+  it('sanitises the fields on stored people', () => {
+    const m = migrateStored({
+      version: 5,
+      shared: {},
+      people: [{ id: 'a', workingDaysWeek2: [3, 3, 8], fortnightStart: '2026-11-19' }, { id: 'b', workingDaysWeek2: 'x', fortnightStart: 'nope' }],
+      activePersonId: 'a',
+      companies: [],
+    })!
+    expect(m.people[0]).toMatchObject({ workingDaysWeek2: [3], fortnightStart: '2026-11-16' })
+    expect(m.people[1]).toMatchObject({ workingDaysWeek2: null, fortnightStart: DEFAULT_SETTINGS.fortnightStart })
   })
 })
