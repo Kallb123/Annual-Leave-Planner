@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { DEFAULT_SETTINGS, type CompanyDay } from '../domain/types'
-import { STORAGE_KEY, initialState, persist, plannerReducer, type PlannerState } from './plannerState'
+import { STORAGE_KEY, hasSavedState, initialState, persist, plannerReducer, type PlannerState } from './plannerState'
 
 class MemoryStorage implements Storage {
   private data = new Map<string, string>()
@@ -249,5 +249,23 @@ describe('showBridgeSuggestions setting', () => {
     const storage = new MemoryStorage()
     persist({ ...base, settings: { ...DEFAULT_SETTINGS, showBridgeSuggestions: false } }, storage)
     expect(initialState(storage).settings.showBridgeSuggestions).toBe(false)
+  })
+})
+
+describe('hasSavedState', () => {
+  it('is false for empty, corrupt or unknown-version storage', () => {
+    const storage = new MemoryStorage()
+    expect(hasSavedState(storage)).toBe(false)
+    storage.setItem(STORAGE_KEY, '{nope')
+    expect(hasSavedState(storage)).toBe(false)
+    storage.setItem(STORAGE_KEY, JSON.stringify({ version: 99 }))
+    expect(hasSavedState(storage)).toBe(false)
+    expect(hasSavedState(undefined)).toBe(false)
+  })
+
+  it('is true once state has been persisted', () => {
+    const storage = new MemoryStorage()
+    persist(initialState(storage), storage)
+    expect(hasSavedState(storage)).toBe(true)
   })
 })

@@ -73,6 +73,8 @@ Presentational components that render props and dispatch actions. They contain n
 - `BridgeSuggestions`: the top five suggestions with a Book button (dispatches `setLeaveRange` with `'full'`). `YearCalendar` takes an optional `bridgeByDate` map and adds a dotted `day--bridge` outline and a tooltip. Suggestions are screen-only: the PNG renderer ignores them, and the on-screen `Legend` adds its bridge entry separately from the shared `legendItems`. They are controlled by the `showBridgeSuggestions` setting.
 - `SummaryBar`, `Legend`.
 
+**Small screens.** Below 860px (`useMediaQuery`) `SettingsPanel` becomes collapsible (`aria-expanded`/`aria-controls`). It starts collapsed for returning users (`hasSavedState()` from `plannerState.ts`, read once before the first persist) and open for first-time users; no schema change. Under 600px the calendar is one month per row with fluid columns and the toolbar is a two-row grid. Under `@media (pointer: coarse)` every control is at least 44px, and day cells use `touch-action: pan-y` so vertical swipes still scroll the page while horizontal drags along a week select a range (pointercancel aborts the drag). Cells are 44px wide from about 352px viewports up; at 320px they stay 44px tall and shrink to about 39px wide rather than scroll sideways.
+
 ### `src/export/` – PNG export
 
 - `renderPng.ts` draws a `YearView` straight onto a canvas with the 2D API at 2× scale. `computeLayout()` is pure and separate from drawing.

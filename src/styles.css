@@ -512,3 +512,242 @@ button.day:not(:disabled) {
 .bridge-dates {
   color: var(--c-textMuted);
 }
+
+/* --- Collapsible settings (small screens; see SettingsPanel) --------------- */
+
+.settings-body {
+  display: grid;
+  gap: 16px;
+}
+
+.settings-body[hidden] {
+  display: none;
+}
+
+.settings-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  min-height: 44px;
+  margin: -8px 0;
+  padding: 8px 0;
+  border: 0;
+  background: none;
+  font-size: inherit;
+  font-weight: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.settings-toggle-text {
+  display: grid;
+  min-width: 0;
+}
+
+.settings-summary {
+  font-size: 0.85rem;
+  font-weight: 400;
+  color: var(--c-textMuted);
+}
+
+.settings-chevron {
+  flex: none;
+  width: 10px;
+  height: 10px;
+  margin-right: 4px;
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  transform: rotate(45deg);
+  transition: transform 0.15s;
+}
+
+.settings-toggle[aria-expanded='true'] .settings-chevron {
+  transform: rotate(-135deg);
+}
+
+.settings-toggle:focus-visible {
+  outline: 2px solid var(--c-accent);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+/* --- Touch devices (issue #8) ----------------------------------------------
+   Everything tappable is at least 44px. Day cells are 44px tall; --cell is
+   48px (44px button + 2 x 2px margin) wherever the month grid has fixed-width
+   columns. Drags: see the touch-action note below. */
+
+@media (pointer: coarse) {
+  :root {
+    --cell: 48px;
+  }
+
+  .chip,
+  .primary,
+  .secondary,
+  .link,
+  .year-nav button:not(.link) {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  .link {
+    padding: 0 8px;
+  }
+
+  input[type='number'],
+  input[type='text'],
+  input[type='date'],
+  select {
+    min-height: 44px;
+  }
+
+  .checkbox {
+    min-height: 44px;
+  }
+
+  .checkbox input {
+    flex: none;
+    width: 24px;
+    height: 24px;
+  }
+
+  .year-nav button:not(.link) {
+    width: 44px;
+    height: 44px;
+  }
+
+  /* Vertical swipes scroll the page even when they start on a day (a full-width
+     month would otherwise be a scroll dead zone). Horizontal drags along a week
+     still select a range. The browser sends pointercancel if it takes over a
+     vertical pan, which YearCalendar treats as "abort the drag". */
+  button.day:not(:disabled) {
+    touch-action: pan-y;
+  }
+
+  .month-grid {
+    -webkit-touch-callout: none;
+  }
+}
+
+/* --- Phones: one month per row, tidy toolbar (issue #8) --------------------- */
+
+@media (max-width: 600px) {
+  .app {
+    padding: 12px 6px 32px;
+  }
+
+  .app-header {
+    padding: 0 6px;
+    margin-bottom: 12px;
+  }
+
+  .app-header h1 {
+    font-size: 1.4rem;
+  }
+
+  .panel {
+    padding: 12px 8px;
+  }
+
+  .layout {
+    gap: 12px;
+  }
+
+  .field-row {
+    min-width: 0;
+  }
+
+  .company-day-form .field-row {
+    grid-template-columns: 1fr;
+  }
+
+  /* Toolbar: year nav row with arrows flanking the label, actions on their own
+     row as two equal-width buttons. */
+  .toolbar {
+    display: grid;
+    gap: 10px;
+  }
+
+  .year-nav {
+    display: grid;
+    grid-template-columns: 44px 1fr 44px;
+    justify-items: stretch;
+  }
+
+  .year-nav h2 {
+    text-align: center;
+  }
+
+  .year-nav button:not(.link) {
+    width: 44px;
+    height: 44px;
+  }
+
+  .year-nav-reset {
+    grid-column: 1 / -1;
+    justify-self: center;
+    min-height: 44px;
+  }
+
+  .actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .actions button {
+    min-height: 44px;
+    padding: 8px 6px;
+  }
+
+  .bridge-list li {
+    flex-wrap: wrap;
+  }
+
+  .bridge-list button {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  .summary {
+    gap: 8px;
+  }
+
+  .stat {
+    flex-basis: 90px;
+    padding: 8px 10px;
+  }
+
+  .stat dd {
+    font-size: 1.25rem;
+  }
+
+  /* One month per row, with fluid columns so the grid always fits.
+     Trade-off: 7 columns of 44px (308px) plus the page and panel padding
+     (about 30px) and 2px of margin per cell need a viewport of about 352px. At
+     360px and up (all current iPhones and most Android phones) every cell is at
+     least 44 x 44. Below that, cells stay 44px tall and shrink in width
+     (about 38px at 320px) rather than scrolling the page sideways. */
+  .year {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 20px;
+  }
+
+  .week,
+  .weekday-row {
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+  }
+
+  .day {
+    width: auto;
+    height: calc(var(--cell) - 4px);
+    margin: 1px;
+  }
+}
+
+@media (max-width: 600px) and (pointer: coarse) {
+  .day {
+    height: 44px;
+  }
+}

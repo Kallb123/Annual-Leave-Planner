@@ -122,6 +122,14 @@ export function initialState(storage: Storage | undefined = safeLocalStorage()):
   }
 }
 
+/**
+ * True when storage already holds valid saved planner data (a returning user).
+ * Call it before the first `persist`, which would otherwise make every visit look returning.
+ */
+export function hasSavedState(storage: Storage | undefined = safeLocalStorage()): boolean {
+  return storage ? readStored(storage) !== null : false
+}
+
 export function persist(state: PlannerState, storage: Storage | undefined = safeLocalStorage()) {
   if (!storage) return
   const payload: StoredStateV2 = {

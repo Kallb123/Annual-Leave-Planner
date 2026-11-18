@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useReducer } from 'react'
+import { useEffect, useMemo, useReducer, useState } from 'react'
 import { overAllocatedDates, overEntitlementMessage, summarise } from '../domain/allowance'
 import { bankHolidayIndex, coversRange } from '../domain/bankHolidays'
 import { companyDayIndex } from '../domain/companyDays'
@@ -6,7 +6,7 @@ import { findBridges, type Bridge } from '../domain/bridges'
 import { buildYearView } from '../domain/calendar'
 import { parseIso, todayIso } from '../domain/dates'
 import { leaveYearContaining, leaveYearLabel, leaveYearStartingIn } from '../domain/leaveYear'
-import { initialState, persist, plannerReducer } from './plannerState'
+import { hasSavedState, initialState, persist, plannerReducer } from './plannerState'
 
 /**
  * Single hook that owns planner state and derives everything the UI needs.
@@ -14,6 +14,8 @@ import { initialState, persist, plannerReducer } from './plannerState'
  */
 export function usePlanner() {
   const [state, dispatch] = useReducer(plannerReducer, undefined, () => initialState())
+  // Read once, during the first render, before the persist effect below writes to storage.
+  const [hadSavedState] = useState(() => hasSavedState())
   const { settings, leave, companyDays: companyDayList, yearOffset } = state
 
   useEffect(() => {
@@ -67,6 +69,7 @@ export function usePlanner() {
 
   return {
     state,
+    hadSavedState,
     dispatch,
     range,
     label,
