@@ -1,5 +1,6 @@
 import { useCallback, useState } from 'react'
 import { BridgeSuggestions } from './components/BridgeSuggestions'
+import { PeopleBar } from './components/PeopleBar'
 import { SettingsPanel } from './components/SettingsPanel'
 import { SummaryBar } from './components/SummaryBar'
 import { UpdateBanner } from './components/UpdateBanner'
@@ -12,7 +13,7 @@ import { useMediaQuery } from './hooks/useMediaQuery'
 import { usePlanner } from './state/usePlanner'
 
 export default function App() {
-  const { state, hadSavedState, dispatch, range, label, yearView, summary, bridges, bridgeByDate, overEntitlementWarning, hasBankHolidayData } = usePlanner()
+  const { state, hadSavedState, dispatch, range, label, settings, activePerson, people, yearView, summary, bridges, bridgeByDate, overEntitlementWarning, hasBankHolidayData } = usePlanner()
   // Same breakpoint as the single-column layout in styles.css.
   const smallScreen = useMediaQuery('(max-width: 860px)')
   const [exporting, setExporting] = useState(false)
@@ -29,7 +30,7 @@ export default function App() {
     [dispatch],
   )
 
-  const regionLabel = REGIONS.find((r) => r.id === state.settings.region)?.label ?? ''
+  const regionLabel = REGIONS.find((r) => r.id === settings.region)?.label ?? ''
 
   async function exportPng() {
     setExporting(true)
@@ -37,8 +38,12 @@ export default function App() {
       const canvas = renderYearToCanvas(yearView, {
         title: `Annual leave ${label}`,
         subtitle: `${range.start} to ${range.end} · ${regionLabel} bank holidays`,
-        summary,
-        warning: overEntitlementWarning ?? undefined,
+        people: people.map((p) => ({
+          name: p.person.name,
+          colour: p.person.colour,
+          summary: p.summary,
+          warning: p.warning ?? undefined,
+        })),
       })
       await downloadCanvasAsPng(canvas, `annual-leave-${label.replace('/', '-')}.png`)
     } finally {
@@ -51,12 +56,12 @@ export default function App() {
       <UpdateBanner />
       <header className="app-header">
         <h1>Annual Leave Planner</h1>
-        <p className="tagline">Click or tap a working day to book leave, again for a half day, and again to clear. Shift-click or drag (swipe sideways on touch screens) to book or clear a range.</p>
+        <p className="tagline">Leave is booked for the person selected below. Click or tap a working day to book leave, again for a half day, and again to clear. Shift-click or drag (swipe sideways on touch screens) to book or clear a range.</p>
       </header>
 
       <div className="layout">
         <aside>
-          <SettingsPanel collapsible={smallScreen} defaultCollapsed={hadSavedState} settings={state.settings} companyDays={state.companyDays} dispatch={dispatch} />
+          <SettingsPanel collapsible={smallScreen} defaultCollapsed={hadSavedState} settings={settings} activePerson={activePerson} peopleCount={people.length} companyDays={state.companyDays} dispatch={dispatch} />
         </aside>
 
         <main className="panel">
@@ -80,18 +85,20 @@ export default function App() {
                 type="button"
                 className="secondary"
                 onClick={() => {
-                  if (confirm(`Clear all leave booked in ${label}?`)) {
+                  if (confirm(`Clear all of ${activePerson.name}’s leave in ${label}?`)) {
                     dispatch({ type: 'clearLeaveInRange', start: range.start, end: range.end })
                   }
                 }}
               >
-                Clear year
+                Clear <span className="actions-name">{activePerson.name}</span>’s year
               </button>
               <button type="button" className="primary" onClick={exportPng} disabled={exporting}>
                 {exporting ? 'Exporting…' : 'Download PNG'}
               </button>
             </div>
           </div>
+
+          <PeopleBar people={people} dispatch={dispatch} />
 
           <SummaryBar summary={summary} warning={overEntitlementWarning} />
 
@@ -103,8 +110,8 @@ export default function App() {
 
           <BridgeSuggestions bridges={bridges} onBook={bookBridge} />
 
-          <YearCalendar view={yearView} bridgeByDate={bridgeByDate} onToggleDay={toggleDay} onSetRange={setRange} />
-          <Legend showBridge={bridges.length > 0} />
+          <YearCalendar view={yearView} activeColour={activePerson.colour} bridgeByDate={bridgeByDate} onToggleDay={toggleDay} onSetRange={setRange} />
+          <Legend people={people.map((p) => ({ id: p.person.id, name: p.person.name, colour: p.person.colour }))} activeColour={activePerson.colour} showBridge={bridges.length > 0} />
         </main>
       </div>
     </div>

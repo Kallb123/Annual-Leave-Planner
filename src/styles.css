@@ -255,6 +255,184 @@ select {
   margin: 0 0 16px;
 }
 
+/* --- People bar & person settings ----------------------------------------- */
+
+.people-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  margin: 0 0 16px;
+}
+
+.people-bar-label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--c-textMuted);
+}
+
+.people-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+}
+
+.people-list li {
+  display: flex;
+  min-width: 0;
+}
+
+.person-chip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  max-width: 100%;
+  padding: 6px 12px;
+  border: 2px solid var(--c-border);
+  border-radius: 999px;
+  background: var(--c-background);
+  cursor: pointer;
+}
+
+.person-chip[aria-pressed='true'] {
+  border-color: var(--person-colour);
+  background: var(--c-surface);
+  font-weight: 600;
+}
+
+.person-dot {
+  flex: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--person-colour);
+}
+
+.person-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.person-left {
+  flex: none;
+  font-size: 0.85rem;
+  font-weight: 400;
+  color: var(--c-textMuted);
+  white-space: nowrap;
+}
+
+.person-left--warn {
+  color: var(--c-warn);
+  font-weight: 600;
+}
+
+.person-add {
+  padding: 6px 12px;
+  border-radius: 999px;
+}
+
+.person-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.person-form input[type='text'] {
+  width: 12rem;
+  max-width: 100%;
+}
+
+.actions-name {
+  display: inline-block;
+  max-width: 10ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: bottom;
+}
+
+.settings-group {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+  padding-top: 16px;
+  border-top: 1px solid var(--c-border);
+}
+
+.settings-group:first-child {
+  padding-top: 0;
+  border-top: 0;
+}
+
+.settings-group > h3 {
+  font-size: 0.95rem;
+  overflow-wrap: anywhere;
+}
+
+.colour-swatches {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.colour-swatch,
+.colour-custom {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 2px solid var(--c-background);
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px var(--c-border);
+  cursor: pointer;
+}
+
+.colour-swatch[aria-pressed='true'],
+.colour-custom--active {
+  box-shadow: 0 0 0 3px var(--c-text);
+}
+
+.colour-swatch:focus-visible,
+.colour-custom:focus-visible {
+  outline: 2px solid var(--c-accent);
+  outline-offset: 3px;
+}
+
+.colour-custom {
+  appearance: none;
+  background: none;
+  overflow: hidden;
+}
+
+.colour-custom::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+
+.colour-custom::-webkit-color-swatch {
+  border: 0;
+  border-radius: 50%;
+}
+
+.colour-custom::-moz-color-swatch {
+  border: 0;
+  border-radius: 50%;
+}
+
+.remove-person {
+  justify-self: start;
+  padding: 0;
+  color: var(--c-warn);
+}
+
 /* --- Update banner (PWA) --------------------------------------------------- */
 
 .update-banner {
@@ -313,7 +491,7 @@ button.day:not(:disabled) {
 }
 
 button.day:not(:disabled):hover {
-  outline: 2px solid var(--c-leave);
+  outline: 2px solid var(--person-colour, var(--c-leave));
   outline-offset: -2px;
 }
 
@@ -334,13 +512,43 @@ button.day:not(:disabled):hover {
   background: var(--c-companyDay);
 }
 
-.day--leave-full {
-  background: var(--c-leave);
-  color: #fff;
+/* Leave colours come from each person (see the .day-leave layer), not from
+   these state classes. */
+
+.day {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
 }
 
-.day--leave-half {
-  background: linear-gradient(to bottom right, var(--c-leaveHalf) 50%, var(--c-leave) 50%);
+/* Equal-width vertical segments, one per person on leave. */
+.day-leave {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  border-radius: inherit;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.day-leave > span {
+  flex: 1 1 0;
+}
+
+.day-num {
+  position: relative;
+  pointer-events: none;
+}
+
+/* Several people on one day: a halo keeps the number legible over any mix of colours. */
+.day-num--pill {
+  min-width: 1.5em;
+  padding: 0 3px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.88);
+  color: var(--c-text);
+  font-weight: 600;
+  line-height: 1.35;
 }
 
 .day--out-of-range {
@@ -436,7 +644,7 @@ button.day:not(:disabled) {
 }
 
 .day--selecting {
-  outline: 2px dashed var(--c-leave);
+  outline: 2px dashed var(--person-colour, var(--c-leave));
   outline-offset: -2px;
 }
 
@@ -489,7 +697,7 @@ button.day:not(:disabled) {
 }
 
 .day--bridge.day--selecting {
-  outline: 2px dashed var(--c-leave);
+  outline: 2px dashed var(--person-colour, var(--c-leave));
 }
 
 .swatch--bridge {
@@ -599,6 +807,9 @@ button.day:not(:disabled) {
   }
 
   .chip,
+  .person-chip,
+  .person-add,
+  .remove-person,
   .primary,
   .secondary,
   .link,
@@ -620,6 +831,12 @@ button.day:not(:disabled) {
 
   .checkbox {
     min-height: 44px;
+  }
+
+  .colour-swatch,
+  .colour-custom {
+    width: 44px;
+    height: 44px;
   }
 
   .checkbox input {
@@ -716,6 +933,23 @@ button.day:not(:disabled) {
     padding: 8px 6px;
   }
 
+  .people-bar-label {
+    flex-basis: 100%;
+  }
+
+  .person-form {
+    flex: 1 1 100%;
+  }
+
+  .person-form input[type='text'] {
+    flex: 1 1 8rem;
+    width: auto;
+  }
+
+  .actions-name {
+    max-width: 7ch;
+  }
+
   .bridge-list li {
     flex-wrap: wrap;
   }
@@ -765,4 +999,17 @@ button.day:not(:disabled) {
   .day {
     height: 44px;
   }
+}
+
+/* Not a preset: show a rainbow so it doesn't look like a duplicate of the current colour. */
+.colour-custom:not(.colour-custom--active) {
+  background: conic-gradient(#dc2626, #eab308, #16a34a, #0891b2, #2563eb, #c026d3, #dc2626);
+}
+
+.colour-custom:not(.colour-custom--active)::-webkit-color-swatch {
+  opacity: 0;
+}
+
+.colour-custom:not(.colour-custom--active)::-moz-color-swatch {
+  opacity: 0;
 }

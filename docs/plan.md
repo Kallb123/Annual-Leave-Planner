@@ -22,7 +22,7 @@ People with a fixed annual leave allowance want to see the whole leave year at a
 **Out of scope for v1**
 
 - Accounts, sync or a backend
-- Team or shared calendars
+- Team or shared calendars synced between devices (several people can be planned in one browser, see M3)
 - Leave allowances in hours
 - Non-UK public holidays (the design allows them, see below)
 - Approval workflows
@@ -66,6 +66,7 @@ People with a fixed annual leave allowance want to see the whole leave year at a
 - [ ] Accessibility audit (keyboard grid navigation with arrow keys, screen reader pass)
 - [ ] Visual regression tests for the PNG renderer (Playwright screenshot comparison)
 - [x] Installable PWA with offline support
+- [x] Several people in one plan, each with their own allowance, working days and colour
 
 ## Open questions
 
