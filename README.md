@@ -2,13 +2,14 @@
 
 A small web app for planning annual leave across a leave year and downloading the result as a PNG.
 
+- **Several people, one calendar.** Add everyone you plan leave with (a partner, a small team). Each person has their own allowance, carry-over, working days and bookings, and their own colour. Pick who you're booking for from the chips above the calendar; days where several people are off are split into coloured stripes, one per person.
 - **Plan visually.** Click a working day to book a full day, click again for a half day, and once more to clear it. Shift-click or drag (mouse, or swipe sideways on touch screens) to book or clear a whole range; weekends, non-working days and bank holidays are skipped.
 - **Your leave year.** Set your allowance, any carried-over days, and the date your leave year resets (for example 1 January or 1 April).
 - **UK bank holidays.** Bank holidays for England & Wales, Scotland or Northern Ireland are shown automatically. You can also count them against your allowance if your contract does.
 - **Company days.** Add office closures and extra days off (for example "24 December, every year"). Choose whether each one comes out of your allowance. They get their own colour and can't be booked.
 - **Bridge suggestions.** Spots short runs of working days between bank holidays, company days and weekends, and shows how many days off in a row booking them would give (for example "Book 3 days, get 10 days off"). They get a dotted outline on the calendar and a list with a one-click Book button. Switch them off in the settings; they never appear in the PNG.
 - **Part-time friendly.** Choose which days of the week you work. Leave can only be booked on working days.
-- **Export.** Download the whole leave year, with leave, bank holidays and a summary, as a high-resolution PNG.
+- **Export.** Download the whole leave year, with everyone's leave, bank holidays and a per-person summary, as a high-resolution PNG.
 - **Installable and offline.** It's a Progressive Web App: install it from your browser (or add it to your home screen on iOS) and it keeps working with no connection after the first visit. When a new version is deployed, an "Update available" banner offers a one-click reload.
 - **Private by default.** There's no backend and no account. Everything is stored in your browser's `localStorage`.
 
