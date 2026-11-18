@@ -1,0 +1,298 @@
+/* Calendar, legend and company-day popover. Colours come from the --c-* tokens. */
+
+.year {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(272px, 100%), 1fr));
+  gap: 28px 36px;
+}
+
+.month {
+  min-width: 0;
+}
+
+.month h3 {
+  margin-bottom: 10px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.month-grid {
+  display: grid;
+  gap: 3px;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.week,
+.weekday-row {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 3px;
+}
+
+.weekday {
+  font-size: 11px;
+  color: var(--c-textMuted);
+  text-align: center;
+}
+
+/* --- Day cells ------------------------------------------------------------ */
+
+.day {
+  position: relative;
+  display: grid;
+  place-items: center;
+  height: 34px;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--c-text);
+  font-size: 13px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  box-shadow: var(--ring, none);
+}
+
+.day--empty {
+  pointer-events: none;
+}
+
+.day--non-working {
+  background: var(--c-nonWorking);
+  color: var(--c-nonWorkingText);
+}
+
+.day--bank-holiday {
+  background: var(--c-bankHoliday);
+  color: var(--c-bankHolidayText);
+  font-weight: 600;
+}
+
+.day--company-day {
+  background: var(--c-companyDay);
+  color: var(--c-companyDayText);
+  font-weight: 600;
+}
+
+/* Leave: the background (full colour, tint or diagonal bands) is set inline. */
+.day--has-leave {
+  font-weight: 600;
+}
+
+.day-num {
+  position: relative;
+  pointer-events: none;
+}
+
+/* Several people, all full days: white on the colour bands (every preset passes AA with white). */
+.day-num--on-colour {
+  color: #fff;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+}
+
+/* Several people with at least one half day: a halo keeps the number legible. */
+.day-num--pill {
+  min-width: 1.6em;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.88);
+  color: var(--c-text);
+  line-height: 1.4;
+}
+
+.day--out-of-range {
+  opacity: 0.35;
+}
+
+.day--today {
+  box-shadow: inset 0 0 0 2px var(--c-today);
+  font-weight: 700;
+}
+
+button.day:not(:disabled) {
+  cursor: pointer;
+  /* Stop touch drags scrolling the page while selecting days. */
+  touch-action: none;
+}
+
+/* Outlines, lowest to highest precedence: hover, bridge, selection, over limit, focus. */
+button.day:where(:not(:disabled)):hover {
+  outline: 2px solid var(--person-colour, var(--c-accent));
+  outline-offset: -2px;
+}
+
+.day.day--bridge {
+  outline: 1.5px dashed var(--c-accent);
+  outline-offset: -1.5px;
+}
+
+button.day.day--selecting {
+  outline: 2px dashed var(--person-colour, var(--c-accent));
+  outline-offset: -2px;
+}
+
+button.day.day--over-limit {
+  outline: 2px solid var(--c-warn);
+  outline-offset: -2px;
+}
+
+button.day:focus-visible {
+  z-index: 1;
+  outline: 2px solid var(--c-accent);
+  outline-offset: 2px;
+}
+
+/* --- Legend --------------------------------------------------------------- */
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 22px;
+  margin: 0;
+  padding: 16px 0 0;
+  border-top: 1px solid var(--c-divider);
+  list-style: none;
+  font-size: 12px;
+  color: #4f4b44;
+}
+
+.legend li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.swatch {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 4px;
+}
+
+.swatch--bridge {
+  outline: 1.5px dashed var(--c-accent);
+  outline-offset: -1.5px;
+}
+
+.swatch--today {
+  box-shadow: inset 0 0 0 2px var(--c-today);
+}
+
+/* --- Touch ---------------------------------------------------------------- */
+
+@media (pointer: coarse) {
+  .day {
+    height: 44px;
+  }
+
+  /* Vertical swipes scroll the page even when they start on a day. Horizontal drags
+     along a week still select a range; the browser sends pointercancel if it takes
+     over a vertical pan, which YearCalendar treats as "abort the drag". */
+  button.day:not(:disabled) {
+    touch-action: pan-y;
+  }
+
+  .month-grid {
+    -webkit-touch-callout: none;
+  }
+}
+
+/* --- Phones: one month per card ------------------------------------------- */
+
+@media (max-width: 600px) {
+  .year {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 12px;
+  }
+
+  .month {
+    padding: 16px 14px 14px;
+    border: 1px solid var(--c-border);
+    border-radius: 18px;
+    background: var(--c-background);
+  }
+
+  .month-grid,
+  .week,
+  .weekday-row {
+    gap: 4px;
+  }
+
+  .day {
+    height: 44px;
+  }
+}
+
+/* --- Company-day popover -------------------------------------------------- */
+
+.company-popover {
+  position: fixed;
+  z-index: 20;
+  width: min(320px, calc(100vw - 16px));
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+  border: 1px solid var(--c-border);
+  border-radius: 14px;
+  background: var(--c-background);
+  box-shadow: var(--shadow-raised), 0 12px 32px rgba(30, 29, 26, 0.14);
+}
+
+.company-popover-title {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.company-popover-company {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--c-textMuted);
+  overflow-wrap: anywhere;
+}
+
+.company-popover-repeat {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.company-popover-actions {
+  display: grid;
+  gap: 8px;
+}
+
+.company-popover-actions .btn {
+  white-space: normal;
+}
+
+.company-popover-actions .btn-link {
+  justify-self: center;
+}
+
+@media (pointer: coarse) {
+  .company-popover input[type='text'] {
+    min-height: 44px;
+  }
+}
+
+/* Phones: a bottom sheet instead of a floating card. */
+@media (max-width: 600px) {
+  .company-popover {
+    left: 0 !important;
+    right: 0;
+    top: auto !important;
+    bottom: 0;
+    width: auto;
+    border-radius: 18px 18px 0 0;
+    padding-bottom: calc(16px + env(safe-area-inset-bottom));
+    opacity: 1 !important;
+  }
+}

@@ -1,11 +1,14 @@
-import { useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent } from 'react'
+import { useMemo } from 'react'
 import { countCompanyDays } from '../domain/companyDays'
-import { COMPANY_NAME_MAX, type Company, type DateRange } from '../domain/types'
+import { COMPANY_NAME_MAX, type Company, type DateRange, type Person } from '../domain/types'
 import type { PlannerAction } from '../state/plannerState'
+import { PlusIcon } from './Icons'
+import { InlineAddForm } from './InlineAddForm'
 import { newId } from './newId'
 
 interface Props {
   companies: Company[]
+  people: Person[]
   editingCompanyId: string | null
   /** The leave year being shown, for the per-company day counts. */
   range: DateRange
@@ -13,113 +16,87 @@ interface Props {
 }
 
 /**
- * Chips for choosing a company whose days the calendar edits, plus an inline
- * form to add one. Same pattern as PeopleBar.
+ * Side-rail list of companies. "Edit days" puts the calendar into company mode
+ * for that company; "Done" (or pressing it again) leaves it.
  */
-export function CompaniesBar({ companies, editingCompanyId, range, dispatch }: Props) {
-  const [adding, setAdding] = useState(false)
-  const [name, setName] = useState('')
-  const inputRef = useRef<HTMLInputElement>(null)
-  const addButtonRef = useRef<HTMLButtonElement>(null)
-  const wasAdding = useRef(false)
-
-  useEffect(() => {
-    if (adding) inputRef.current?.focus()
-    else if (wasAdding.current) addButtonRef.current?.focus()
-    wasAdding.current = adding
-  }, [adding])
-
+export function CompaniesBar({ companies, people, editingCompanyId, range, dispatch }: Props) {
   const counts = useMemo(
     () => new Map(companies.map((c) => [c.id, countCompanyDays(c.days, range.start, range.end)])),
     [companies, range.start, range.end],
   )
-  const editing = companies.find((c) => c.id === editingCompanyId)
-
-  function close() {
-    setAdding(false)
-    setName('')
-  }
-
-  function onSubmit(e: FormEvent) {
-    e.preventDefault()
-    const trimmed = name.trim()
-    if (!trimmed) {
-      inputRef.current?.focus()
-      return
-    }
-    dispatch({ type: 'addCompany', id: newId('c'), name: trimmed })
-    close()
-  }
-
-  function onKeyDown(e: KeyboardEvent<HTMLInputElement>) {
-    if (e.key === 'Escape') {
-      e.preventDefault()
-      close()
-    }
-  }
 
   return (
-    <div className="companies">
-      <div className="people-bar companies-bar" role="group" aria-labelledby="companies-bar-label">
-        <span id="companies-bar-label" className="people-bar-label">
-          Company days for
-        </span>
-        <ul className="people-list">
+    <section className="rail-section" aria-labelledby="companies-heading">
+      <div className="rail-section-head">
+        <h2 id="companies-heading" className="section-label">
+          Company days
+        </h2>
+        <InlineAddForm
+          openLabel="Add company"
+          openIcon={<PlusIcon size={14} />}
+          inputLabel="New company’s name"
+          placeholder="Company name"
+          maxLength={COMPANY_NAME_MAX}
+          onAdd={(name) => dispatch({ type: 'addCompany', id: newId('c'), name })}
+        />
+      </div>
+      {companies.length === 0 ? (
+        <p className="hint">Add a company to mark office closures and extra days off.</p>
+      ) : (
+        <ul className="rail-tiles">
           {companies.map((company) => {
             const count = counts.get(company.id) ?? 0
+            const members = people.filter((p) => p.companyId === company.id).map((p) => p.name)
+            const editing = company.id === editingCompanyId
             return (
-              <li key={company.id}>
+              <li key={company.id} className="rail-tile">
+                <span className="company-mark" aria-hidden="true" />
+                <span className="rail-tile-text">
+                  <span className="rail-tile-title">{company.name}</span>
+                  <span className="rail-tile-meta">
+                    {count === 1 ? '1 day' : `${count} days`} this year
+                    {members.length > 0 ? ` · ${members.join(', ')}` : ''}
+                  </span>
+                </span>
                 <button
                   type="button"
-                  className="person-chip company-chip"
-                  aria-pressed={company.id === editingCompanyId}
-                  onClick={() =>
-                    dispatch(company.id === editingCompanyId ? { type: 'stopEditingCompany' } : { type: 'selectCompany', id: company.id })
-                  }
+                  className={`btn btn-sm ${editing ? 'btn-primary' : 'btn-secondary'}`}
+                  aria-pressed={editing}
+                  aria-label={editing ? `Done editing ${company.name} days` : `Edit ${company.name} days`}
+                  onClick={() => dispatch(editing ? { type: 'stopEditingCompany' } : { type: 'selectCompany', id: company.id })}
                 >
-                  <span className="person-dot" aria-hidden="true" />
-                  <span className="person-name">{company.name}</span>
-                  <span className="person-left">{count === 1 ? '1 day' : `${count} days`}</span>
+                  {editing ? 'Done' : 'Edit days'}
                 </button>
               </li>
             )
           })}
         </ul>
-        {adding ? (
-          <form className="person-form" onSubmit={onSubmit}>
-            <input
-              ref={inputRef}
-              type="text"
-              aria-label="New company’s name"
-              placeholder="Company name"
-              maxLength={COMPANY_NAME_MAX}
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              onKeyDown={onKeyDown}
-            />
-            <button type="submit" className="secondary">
-              Add
-            </button>
-            <button type="button" className="link" onClick={close}>
-              Cancel
-            </button>
-          </form>
-        ) : (
-          <button ref={addButtonRef} type="button" className="secondary person-add" onClick={() => setAdding(true)}>
-            + Add company
-          </button>
-        )}
-      </div>
-      {editing && (
-        <div className="company-hint">
-          <span>
-            Click a day to add, change or delete a company day for <strong>{editing.name}</strong>. Drag to pick several days.
-          </span>
-          <button type="button" className="secondary" onClick={() => dispatch({ type: 'stopEditingCompany' })}>
-            Done
-          </button>
-        </div>
       )}
+    </section>
+  )
+}
+
+/**
+ * Phones: what tapping a day does. "Book leave", or edit the days of one
+ * company (the one being edited, else the active person's, else the first).
+ */
+export function ModeToggle({
+  company,
+  editing,
+  dispatch,
+}: {
+  company: Company
+  editing: boolean
+  dispatch: (action: PlannerAction) => void
+}) {
+  return (
+    <div className="segmented mode-toggle" role="group" aria-label="What tapping a day does">
+      <button type="button" aria-pressed={!editing} onClick={() => editing && dispatch({ type: 'stopEditingCompany' })}>
+        Book leave
+      </button>
+      <button type="button" aria-pressed={editing} onClick={() => !editing && dispatch({ type: 'selectCompany', id: company.id })}>
+        <span className="mode-toggle-name">{company.name}</span>&nbsp;days
+      </button>
     </div>
   )
 }

@@ -59,6 +59,7 @@ People with a fixed annual leave allowance want to see the whole leave year at a
 
 ### M3 – Polish & breadth
 
+- [x] Visual redesign: calm, warm-neutral look, people cards, summary card, settings in a drawer, self-hosted Inter and Space Grotesk
 - [ ] Dark mode (the palette is already centralised in `theme.ts`)
 - [ ] Locale settings: first day of week, date format
 - [ ] Other countries' public holidays (for example via the Nager.Date API at build time)

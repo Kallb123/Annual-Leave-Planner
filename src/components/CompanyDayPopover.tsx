@@ -37,6 +37,7 @@ function place(anchor: DOMRect, width: number, height: number): CSSProperties {
 /** Small dialog for choosing what the selected days mean for a company. Bottom sheet on phones (CSS). */
 export function CompanyDayPopover({ dates, companyName, existing, anchor, onAssign, onDelete, onClose }: Props) {
   const headingId = useId()
+  const repeatId = useId()
   const ref = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const only = dates.length === 1 && existing.length === 1 ? existing[0] : null
@@ -109,27 +110,29 @@ export function CompanyDayPopover({ dates, companyName, existing, anchor, onAssi
           }}
         />
       </label>
-      <label className="checkbox">
-        <input type="checkbox" checked={repeats} onChange={(e) => setRepeats(e.target.checked)} />
-        <span>Repeats every year</span>
-      </label>
+      <div className="company-popover-repeat">
+        <span id={repeatId}>Repeats every year</span>
+        <button type="button" role="switch" className="switch" aria-checked={repeats} aria-labelledby={repeatId} onClick={() => setRepeats((r) => !r)}>
+          <span className="switch-thumb" />
+        </button>
+      </div>
       <div className="company-popover-actions">
-        <button type="button" className={only?.deducted === true ? 'primary' : 'secondary'} aria-pressed={only ? only.deducted : undefined} onClick={() => assign(true)}>
+        <button type="button" className="btn btn-primary" aria-pressed={only ? only.deducted : undefined} onClick={() => assign(true)}>
           Comes out of allowance
         </button>
-        <button type="button" className={only?.deducted === false ? 'primary' : 'secondary'} aria-pressed={only ? !only.deducted : undefined} onClick={() => assign(false)}>
+        <button type="button" className="btn btn-secondary" aria-pressed={only ? !only.deducted : undefined} onClick={() => assign(false)}>
           Doesn't come out of allowance
         </button>
         {existing.length > 0 && (
-          <button type="button" className="secondary danger" onClick={onDelete}>
+          <button type="button" className="btn btn-danger" onClick={onDelete}>
             Delete
           </button>
         )}
-        <button type="button" className="link" onClick={onClose}>
+        <button type="button" className="btn btn-link" onClick={onClose}>
           Cancel
         </button>
       </div>
-      {existing.length > 0 && repeating && <p className="field-hint">Deletes it from every year.</p>}
+      {existing.length > 0 && repeating && <p className="hint">Deletes it from every year.</p>}
     </div>
   )
 }

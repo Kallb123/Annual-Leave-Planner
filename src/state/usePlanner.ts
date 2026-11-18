@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useReducer, useState } from 'react'
+import { useCallback, useEffect, useMemo, useReducer } from 'react'
 import { overAllocatedDates, overEntitlementMessage, summarise } from '../domain/allowance'
 import { bankHolidayIndex, coversRange } from '../domain/bankHolidays'
 import { companyDayIndex, NO_COMPANY_DAYS, type CompanyDayIndex } from '../domain/companyDays'
@@ -10,7 +10,6 @@ import type { AllowanceSummary } from '../domain/allowance'
 import type { Company, Person } from '../domain/types'
 import {
   activePerson as selectActivePerson,
-  hasSavedState,
   initialState,
   persist,
   personSettings,
@@ -31,8 +30,6 @@ export interface PersonStatus {
  */
 export function usePlanner() {
   const [state, dispatch] = useReducer(plannerReducer, undefined, () => initialState())
-  // Read once, during the first render, before the persist effect below writes to storage.
-  const [hadSavedState] = useState(() => hasSavedState())
   const { shared, people: peopleList, companies, editingCompanyId, yearOffset } = state
   const activePerson = selectActivePerson(state)
   const settings = useMemo(() => personSettings(shared, activePerson), [shared, activePerson])
@@ -123,7 +120,6 @@ export function usePlanner() {
 
   return {
     state,
-    hadSavedState,
     dispatch,
     range,
     label,

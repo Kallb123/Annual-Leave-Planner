@@ -6,6 +6,7 @@ import type { DayCell, MonthView, PersonLeave, YearView } from '../domain/calend
 import { bridgeSummary, type Bridge } from '../domain/bridges'
 import { halfDayTint, legendItems, textOn } from '../theme'
 import { CompanyDayPopover, type CompanyDayChoice } from './CompanyDayPopover'
+import './YearCalendar.css'
 
 interface Props {
   view: YearView
@@ -238,7 +239,7 @@ function Day({ cell, selecting, bridge, companyMode }: { cell: DayCell; selectin
   const classes = [
     'day',
     `day--${cell.kind}`,
-    cell.leave && `day--leave-${cell.leave}`,
+    cell.people.length > 0 && 'day--has-leave',
     !cell.inRange && 'day--out-of-range',
     cell.isToday && 'day--today',
     cell.overLimit && 'day--over-limit',
@@ -268,31 +269,36 @@ function Day({ cell, selecting, bridge, companyMode }: { cell: DayCell; selectin
       aria-label={`${cell.date}${description ? ` – ${description}` : ''}`}
       aria-pressed={bookable ? (companyMode ? cell.companyDay !== null : cell.leave !== null) : undefined}
       data-date={cell.date}
+      style={leaveStyle(cell.people)}
     >
-      {cell.people.length > 0 && <LeaveLayer people={cell.people} />}
-      <span className={`day-num${cell.people.length > 1 ? ' day-num--pill' : ''}`} style={numberStyle(cell.people)}>
-        {cell.day}
-      </span>
+      <span className={numClass(cell.people)}>{cell.day}</span>
     </button>
   )
 }
 
-const halfDayFill = (colour: string) => `linear-gradient(to bottom right, ${halfDayTint(colour)} 50%, ${colour} 50%)`
+const HALF_TINT = 0.2
 
-/** Equal-width vertical segments, one per person on leave, in their colour (half days diagonal). */
-function LeaveLayer({ people }: { people: PersonLeave[] }) {
-  return (
-    <span className="day-leave" aria-hidden="true">
-      {people.map((p) => (
-        <span key={p.personId} style={{ background: p.portion === 'half' ? halfDayFill(p.colour) : p.colour }} />
-      ))}
-    </span>
-  )
+const personFill = (p: PersonLeave) => (p.portion === 'half' ? halfDayTint(p.colour, HALF_TINT) : p.colour)
+
+/** Background and ring for a day with leave: one colour, or equal diagonal bands for several people. */
+function leaveStyle(people: PersonLeave[]): CSSProperties | undefined {
+  if (people.length === 0) return undefined
+  if (people.length === 1) {
+    const [p] = people
+    return {
+      background: personFill(p),
+      color: p.portion === 'full' ? textOn(p.colour) : undefined,
+      ...(p.portion === 'half' ? { '--ring': `inset 0 0 0 1.5px ${p.colour}` } : null),
+    } as CSSProperties
+  }
+  const step = 100 / people.length
+  const bands = people.map((p, i) => `${personFill(p)} ${(i * step).toFixed(2)}% ${((i + 1) * step).toFixed(2)}%`)
+  return { background: `linear-gradient(135deg, ${bands.join(', ')})` }
 }
 
-/** One person's full day fills the cell with their colour, so the number needs a contrasting colour. */
-function numberStyle(people: PersonLeave[]): CSSProperties | undefined {
-  return people.length === 1 && people[0].portion === 'full' ? { color: textOn(people[0].colour) } : undefined
+function numClass(people: PersonLeave[]): string {
+  if (people.length < 2) return 'day-num'
+  return people.every((p) => p.portion === 'full') ? 'day-num day-num--on-colour' : 'day-num day-num--pill'
 }
 
 export function Legend({
@@ -305,7 +311,7 @@ export function Legend({
   showBridge?: boolean
 }) {
   return (
-    <ul className="legend">
+    <ul className="legend" aria-label="Key">
       {people.map((p) => (
         <li key={p.id}>
           <span className="swatch" style={{ background: p.colour }} />
@@ -313,7 +319,10 @@ export function Legend({
         </li>
       ))}
       <li>
-        <span className="swatch" style={{ background: halfDayFill(activeColour) }} />
+        <span
+          className="swatch"
+          style={{ background: halfDayTint(activeColour, HALF_TINT), boxShadow: `inset 0 0 0 1.5px ${activeColour}` }}
+        />
         Half day
       </li>
       {legendItems.map((item) => (
@@ -322,13 +331,17 @@ export function Legend({
           {item.label}
         </li>
       ))}
-      {/* On screen only: the PNG legend is built from `legendItems` directly and omits this. */}
+      {/* On screen only: the PNG legend is built from `legendItems` directly and omits these two. */}
       {showBridge && (
         <li>
           <span className="swatch swatch--bridge" />
-          Suggested bridge
+          Bridge idea
         </li>
       )}
+      <li>
+        <span className="swatch swatch--today" />
+        Today
+      </li>
     </ul>
   )
 }
