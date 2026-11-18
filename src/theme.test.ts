@@ -47,7 +47,7 @@ describe('textOn', () => {
   it('uses white on dark and dark on light colours', () => {
     expect(textOn('#000000')).toBe('#ffffff')
     expect(textOn('#2563eb')).toBe('#ffffff')
-    expect(textOn('#ffffff')).toBe('#1d2330')
-    expect(textOn('#f4b740')).toBe('#1d2330')
+    expect(textOn('#ffffff')).toBe('#1e1d1a')
+    expect(textOn('#f4b740')).toBe('#1e1d1a')
   })
 })

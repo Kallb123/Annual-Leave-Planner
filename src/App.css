@@ -1,0 +1,797 @@
+/* App shell: header, side rail (people, company days, bridge ideas), the
+   summary and calendar cards, and the phone layout. Shared primitives (.btn,
+   .chip, .segmented, .card …) are in styles.css; the calendar's own styles are
+   in components/YearCalendar.css. */
+
+.app {
+  /* A stronger amber than the bank-holiday fill, for small marks on the usage bar. */
+  --bar-bank-holiday: #e0c27a;
+  min-height: 100vh;
+}
+
+/* --- Header ------------------------------------------------------------- */
+
+.app-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px 16px;
+  padding: 14px 32px;
+  border-bottom: 1px solid var(--c-border);
+  background: var(--c-surface);
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1 1 200px;
+  min-width: 0;
+}
+
+.brand svg {
+  flex: none;
+}
+
+.brand-name {
+  font-family: var(--font-display);
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.year-nav {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.year-nav-arrow {
+  border-color: var(--c-border);
+  background: var(--c-background);
+}
+
+.year-nav-label {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 168px;
+}
+
+.year-nav-year {
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: 600;
+  line-height: 1.1;
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+}
+
+.year-nav-sub {
+  font-size: 12px;
+  color: var(--c-textMuted);
+  white-space: nowrap;
+}
+
+/* Sits under the year without shifting the arrows. */
+.year-nav-reset {
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex: 1 1 200px;
+}
+
+.update-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  max-width: 1440px;
+  margin: 16px auto 0;
+  padding: 10px 12px 10px 16px;
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-tile);
+  background: var(--c-background);
+  font-weight: 500;
+}
+
+/* --- Layout -------------------------------------------------------------- */
+
+.layout {
+  max-width: 1440px;
+  margin: 0 auto;
+  padding: 28px 32px 40px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 28px;
+}
+
+.rail {
+  flex: 1 1 280px;
+  max-width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+  min-width: 0;
+}
+
+.main {
+  flex: 999 1 640px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.app-footer {
+  text-align: center;
+  font-size: 12px;
+  color: var(--c-textMuted);
+}
+
+/* --- Rail ---------------------------------------------------------------- */
+
+.rail-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+
+.rail-section-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 34px;
+}
+
+.rail-section-intro {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.inline-add {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+}
+
+.inline-add input[type='text'] {
+  flex: 1 1 8rem;
+  width: auto;
+  min-width: 0;
+  min-height: 34px;
+  border-radius: var(--radius-sm);
+}
+
+.person-cards,
+.rail-tiles {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.person-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+  padding: 16px;
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-tile);
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease;
+}
+
+.person-card:hover {
+  background: var(--c-background);
+}
+
+.person-card[aria-pressed='true'] {
+  border-color: var(--c-ink);
+  background: var(--c-background);
+  box-shadow: var(--shadow-raised);
+}
+
+.person-card-top {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-width: 0;
+}
+
+.person-dot {
+  flex: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--person-colour);
+}
+
+.person-card-who {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+
+.person-card-name {
+  font-size: 15px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.person-card-meta,
+.person-card-of {
+  font-size: 12px;
+  color: var(--c-textMuted);
+}
+
+.person-card-meta {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.person-card-left {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  flex: none;
+}
+
+.person-card-remaining {
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.is-warn {
+  color: var(--c-warn);
+}
+
+.usage-bar {
+  display: flex;
+  width: 100%;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--c-track);
+  overflow: hidden;
+}
+
+.usage-bar > span {
+  flex: none;
+  transition: width 0.2s ease;
+}
+
+.usage-bar-deducted {
+  background: var(--c-companyDayMark);
+}
+
+.usage-bar--large {
+  height: 12px;
+  border-radius: 6px;
+}
+
+.rail-tile,
+.bridge-tile {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  padding: 12px 12px 12px 16px;
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-tile);
+  background: var(--c-background);
+}
+
+.bridge-tile {
+  border-style: dashed;
+  border-color: #9aa6e6;
+}
+
+.company-mark {
+  flex: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 4px;
+  background: var(--c-companyDay);
+  box-shadow: inset 0 0 0 1px var(--c-companyDayMark);
+}
+
+.rail-tile-text {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+
+.rail-tile-title {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.rail-tile-meta {
+  font-size: 12px;
+  color: var(--c-textMuted);
+  overflow-wrap: anywhere;
+}
+
+/* --- Summary card -------------------------------------------------------- */
+
+.summary-card {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 24px 40px;
+  padding: 24px 28px;
+}
+
+.summary-main {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 190px;
+}
+
+.summary-who {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--c-textMuted);
+}
+
+.summary-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+.summary-left {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.summary-number {
+  font-family: var(--font-display);
+  font-size: 56px;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: -0.02em;
+}
+
+.summary-unit {
+  font-size: 16px;
+  font-weight: 500;
+}
+
+.summary-of {
+  margin-left: auto;
+  font-size: 13px;
+  color: var(--c-textMuted);
+}
+
+.summary-detail {
+  flex: 1 1 320px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+}
+
+.summary-stats {
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  gap: 12px;
+}
+
+.summary-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.summary-stat dt {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--c-textMuted);
+}
+
+.summary-stat dd {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.summary-swatch {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  box-shadow: inset 0 0 0 1px rgba(30, 29, 26, 0.08);
+}
+
+.summary-note {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--c-textMuted);
+}
+
+.summary-warning {
+  flex: 1 1 100%;
+}
+
+/* --- Calendar card and mode strip -------------------------------------- */
+
+.calendar-card {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  padding: 20px 28px 28px;
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-card);
+  background: var(--c-background);
+}
+
+.mode-strip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--c-divider);
+}
+
+.mode-strip-text {
+  flex: 1 1 320px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 14px;
+  min-width: 0;
+}
+
+.mode-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 32px;
+  padding: 0 12px 0 10px;
+  border-radius: 999px;
+  background: var(--c-surface);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.mode-pill--company {
+  background: var(--c-companyDay);
+  color: var(--c-companyDayText);
+}
+
+.mode-pill-dot {
+  flex: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--person-colour);
+}
+
+.mode-pill-mark {
+  flex: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  background: #7b68c4;
+}
+
+.mode-strip-hint {
+  font-size: 13px;
+  color: var(--c-textMuted);
+}
+
+/* --- Tablets: rail stacks above the calendar --------------------------- */
+
+@media (max-width: 860px) {
+  .app-header,
+  .layout {
+    padding-left: 20px;
+    padding-right: 20px;
+  }
+
+  .brand {
+    flex-basis: auto;
+  }
+
+  .header-actions {
+    flex-basis: auto;
+  }
+
+  .calendar-card {
+    padding: 16px 20px 20px;
+  }
+
+  /* The rail sits above the calendar here, so lay its tiles side by side to keep it short. */
+  .person-cards,
+  .rail-tiles {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(260px, 100%), 1fr));
+  }
+}
+
+/* --- Phones --------------------------------------------------------------- */
+
+@media (max-width: 600px) {
+  .app-header {
+    flex-wrap: nowrap;
+    padding: 8px 8px 8px 12px;
+  }
+
+  .brand {
+    display: none;
+  }
+
+  .year-nav {
+    gap: 2px;
+  }
+
+  .year-nav-arrow {
+    border-color: transparent;
+    background: transparent;
+  }
+
+  .year-nav-label {
+    min-width: 72px;
+  }
+
+  .year-nav-year {
+    font-size: 20px;
+  }
+
+  .year-nav-sub {
+    font-size: 11px;
+  }
+
+  .year-nav-reset {
+    position: static;
+    transform: none;
+    margin-left: 4px;
+  }
+
+  .header-actions {
+    gap: 4px;
+  }
+
+  .header-actions .icon-btn {
+    width: 44px;
+    min-height: 44px;
+    border-radius: 12px;
+  }
+
+  .update-banner {
+    margin: 12px 16px 0;
+  }
+
+  .layout {
+    display: block;
+    padding: 16px 0 calc(88px + env(safe-area-inset-bottom));
+  }
+
+  .main {
+    gap: 16px;
+  }
+
+  .main > * {
+    margin-left: 16px;
+    margin-right: 16px;
+  }
+
+  .people-chips {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 16px;
+    padding: 0 16px;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .people-chips::-webkit-scrollbar {
+    display: none;
+  }
+
+  .person-chip {
+    flex: none;
+    padding: 0 14px 0 12px;
+    border-color: #e0dcd3;
+    background: transparent;
+  }
+
+  .person-chip[aria-pressed='true'] {
+    border-color: var(--c-ink);
+    background: var(--c-background);
+  }
+
+  .person-chip .person-dot {
+    width: 10px;
+    height: 10px;
+  }
+
+  .person-chip-name {
+    max-width: 10ch;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .person-chip-left {
+    font-size: 13px;
+    font-weight: 400;
+    color: var(--c-textMuted);
+    white-space: nowrap;
+  }
+
+  .person-chip-add {
+    flex: none;
+    width: 44px;
+    padding: 0;
+    border-style: dashed;
+    border-color: #c9c4b9;
+    background: transparent;
+  }
+
+  .people-chips .inline-add {
+    flex: none;
+    flex-wrap: nowrap;
+    width: auto;
+  }
+
+  .people-chips .inline-add input[type='text'] {
+    flex: none;
+    width: 9rem;
+    min-height: 44px;
+  }
+
+  .summary-card--compact {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 14px;
+    padding: 18px;
+  }
+
+  .summary-card--compact .summary-number {
+    font-size: 44px;
+  }
+
+  .summary-card--compact .summary-unit {
+    font-size: 15px;
+  }
+
+  .summary-card--compact .summary-detail {
+    flex-basis: auto;
+  }
+
+  .summary-card--compact .usage-bar--large {
+    height: 10px;
+    border-radius: 5px;
+  }
+
+  .summary-card--compact .summary-stats {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 18px;
+  }
+
+  .summary-card--compact .summary-stat {
+    flex-direction: row;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .summary-card--compact .summary-stat dt {
+    font-size: 13px;
+  }
+
+  .summary-card--compact .summary-stat dd {
+    font-size: 13px;
+  }
+
+  .bridge-tile--card {
+    border-radius: 16px;
+  }
+
+  .mode-toggle .mode-toggle-name {
+    max-width: 12ch;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .mode-toggle > button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* The months become their own cards (YearCalendar.css). */
+  .calendar-card {
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    gap: 16px;
+  }
+
+  .app-footer {
+    padding-top: 8px;
+  }
+
+  .hint-bar {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 16px calc(14px + env(safe-area-inset-bottom));
+    border-top: 1px solid var(--c-border);
+    background: var(--c-background);
+    font-size: 13px;
+    color: #4f4b44;
+  }
+
+  .hint-bar strong {
+    color: var(--c-text);
+  }
+
+  .hint-bar-mark {
+    flex: none;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--person-colour);
+  }
+
+  .hint-bar-mark--company {
+    border-radius: 3px;
+    background: var(--c-companyDayMark);
+  }
+}
+
+@media (pointer: coarse) {
+  .inline-add input[type='text'] {
+    min-height: 44px;
+  }
+}

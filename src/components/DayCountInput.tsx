@@ -6,6 +6,8 @@ interface Props {
   /** The last valid saved value. */
   value: number
   onCommit: (value: number) => void
+  /** Optional unit shown inside the field, e.g. "days". */
+  suffix?: string
 }
 
 /**
@@ -14,7 +16,7 @@ interface Props {
  * blur or Enter; Escape discards it. Invalid input is never saved: the field
  * reverts to the last valid value and an inline error explains why.
  */
-export function DayCountInput({ label, value, onCommit }: Props) {
+export function DayCountInput({ label, value, onCommit, suffix }: Props) {
   const id = useId()
   const errorId = `${id}-error`
   const [draft, setDraft] = useState<string | null>(null)
@@ -35,6 +37,7 @@ export function DayCountInput({ label, value, onCommit }: Props) {
   return (
     <div className="field">
       <label htmlFor={id}>{label}</label>
+      <span className="day-count-box" data-invalid={error ? 'true' : undefined}>
       <input
         id={id}
         type="text"
@@ -59,6 +62,12 @@ export function DayCountInput({ label, value, onCommit }: Props) {
           }
         }}
       />
+      {suffix && (
+        <span className="day-count-suffix" aria-hidden="true">
+          {suffix}
+        </span>
+      )}
+      </span>
       <p id={errorId} className="field-error" role="alert">
         {error}
       </p>

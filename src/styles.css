@@ -1,15 +1,72 @@
-/* Colour tokens (--c-*) are set at runtime from src/theme.ts so the UI and PNG export share one palette. */
+/* Global styles: fonts, tokens, base elements and the shared control primitives.
+   Colour tokens (--c-*) are set at runtime from src/theme.ts so the UI and PNG
+   export share one palette. Component-specific styles live next to their
+   component (YearCalendar.css, SettingsDrawer.css) and the app shell in App.css. */
 
-:root {
-  --radius: 10px;
-  --cell: 34px;
-  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
-  color: var(--c-text);
-  background: var(--c-surface);
-  line-height: 1.4;
+/* --- Fonts (self-hosted, so the app still works offline) ------------------ */
+
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 900;
+  src: url('./assets/fonts/inter-latin-ext-wght-normal.woff2') format('woff2-variations');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
 }
 
-* {
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 900;
+  src: url('./assets/fonts/inter-latin-wght-normal.woff2') format('woff2-variations');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: 'Space Grotesk';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 300 700;
+  src: url('./assets/fonts/space-grotesk-latin-ext-wght-normal.woff2') format('woff2-variations');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
+@font-face {
+  font-family: 'Space Grotesk';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 300 700;
+  src: url('./assets/fonts/space-grotesk-latin-wght-normal.woff2') format('woff2-variations');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+/* --- Tokens --------------------------------------------------------------- */
+
+:root {
+  --font-text: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-display: 'Space Grotesk', 'Inter', system-ui, sans-serif;
+  --radius-sm: 8px;
+  --radius: 10px;
+  --radius-card: 18px;
+  --radius-tile: 14px;
+  --shadow-raised: 0 1px 2px rgba(30, 29, 26, 0.06), 0 6px 16px rgba(30, 29, 26, 0.06);
+  --shadow-segment: 0 1px 2px rgba(30, 29, 26, 0.08), 0 2px 6px rgba(30, 29, 26, 0.06);
+  --shadow-overlay: -24px 0 60px rgba(30, 29, 26, 0.18);
+  --input-border: #dad6cd;
+
+  font-family: var(--font-text);
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--c-text);
+  background: var(--c-surface);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+*,
+*::before,
+*::after {
   box-sizing: border-box;
 }
 
@@ -32,1116 +89,327 @@ h3 {
   line-height: 1.2;
 }
 
-.app {
-  max-width: 1400px;
-  margin: 0 auto;
-  padding: 24px 16px 48px;
+a {
+  color: var(--c-accent);
 }
 
-.app-header {
-  margin-bottom: 20px;
+:focus-visible {
+  outline: 2px solid var(--c-accent);
+  outline-offset: 2px;
 }
 
-.app-header h1 {
-  font-size: 1.75rem;
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
 }
 
-.tagline {
-  margin: 4px 0 0;
+.num {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Small uppercase label above a group ("People", "Company days"). */
+.section-label {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
   color: var(--c-textMuted);
 }
 
-.app-footer {
-  margin-top: 24px;
-  text-align: center;
-  font-size: 0.8rem;
+.muted {
   color: var(--c-textMuted);
 }
 
-.layout {
-  display: grid;
-  grid-template-columns: 300px minmax(0, 1fr);
-  gap: 20px;
-  align-items: start;
+.hint {
+  margin: 0;
+  font-size: 12px;
+  color: var(--c-textMuted);
 }
 
-@media (max-width: 860px) {
-  .layout {
-    grid-template-columns: 1fr;
-  }
-}
-
-.panel {
+/* White rounded surface. */
+.card {
   background: var(--c-background);
   border: 1px solid var(--c-border);
+  border-radius: var(--radius-card);
+}
+
+/* --- Buttons ---------------------------------------------------------------
+   .btn is the base; add one of the variants. .btn-sm is 34px tall (desktop
+   only; coarse pointers get 44px). .icon-btn is a square icon-only button
+   and needs an aria-label. */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 0 16px;
+  border: 1px solid transparent;
   border-radius: var(--radius);
-  padding: 20px;
+  background: transparent;
+  font-weight: 500;
+  white-space: nowrap;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background-color 0.12s ease, border-color 0.12s ease;
 }
 
-/* --- Settings ------------------------------------------------------------ */
-
-.settings {
-  display: grid;
-  gap: 16px;
+.btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
 }
 
-.settings h2 {
-  font-size: 1.1rem;
+.btn svg {
+  flex: none;
 }
 
+.btn-sm {
+  min-height: 34px;
+  padding: 0 12px;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+}
+
+.btn-primary {
+  background: var(--c-ink);
+  border-color: var(--c-ink);
+  color: #fff;
+}
+
+.btn-primary:not(:disabled):hover {
+  background: #000;
+}
+
+.btn-secondary {
+  background: var(--c-background);
+  border-color: var(--input-border);
+  color: var(--c-text);
+}
+
+.btn-secondary:not(:disabled):hover {
+  background: var(--c-surface);
+}
+
+.btn-ghost {
+  color: var(--c-text);
+}
+
+.btn-ghost:not(:disabled):hover {
+  background: var(--c-track);
+}
+
+.btn-danger {
+  color: var(--c-warn);
+}
+
+.btn-danger:not(:disabled):hover {
+  background: #fbeceb;
+}
+
+/* Text-style button (inline actions like "Cancel" or "Current year"). */
+.btn-link {
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  color: var(--c-accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.icon-btn {
+  width: 40px;
+  min-height: 40px;
+  padding: 0;
+}
+
+/* Pressed state for toggle buttons built on .btn-secondary. */
+.btn-secondary[aria-pressed='true'] {
+  background: var(--c-ink);
+  border-color: var(--c-ink);
+  color: #fff;
+}
+
+/* --- Form controls ------------------------------------------------------- */
+
+input[type='number'],
+input[type='text'],
+input[type='date'],
+select {
+  width: 100%;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--input-border);
+  border-radius: var(--radius);
+  background: var(--c-background);
+}
+
+input[aria-invalid='true'] {
+  border-color: var(--c-warn);
+}
+
+/* Label above a control. */
 .field {
   display: grid;
   align-content: start;
   gap: 6px;
-  border: 0;
-  padding: 0;
-  margin: 0;
   min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
 }
 
 .field > span,
+.field > label,
 .field > legend {
-  font-size: 0.85rem;
-  font-weight: 600;
-  color: var(--c-textMuted);
   padding: 0;
-  margin-bottom: 6px;
-}
-
-.field-row {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
-}
-
-.field-row > select:first-child {
-  max-width: 5rem;
-}
-
-input[type='number'],
-input[type='text'],
-select {
-  width: 100%;
-  padding: 8px 10px;
-  border: 1px solid var(--c-border);
-  border-radius: 8px;
-  background: var(--c-background);
-}
-
-.checkbox {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  font-size: 0.95rem;
-}
-
-.weekday-toggles {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
-.chip {
-  padding: 6px 10px;
-  border-radius: 999px;
-  border: 1px solid var(--c-border);
-  background: var(--c-background);
-  cursor: pointer;
-}
-
-.chip[aria-pressed='true'] {
-  background: var(--c-accent);
-  border-color: var(--c-accent);
-  color: #fff;
-}
-
-/* --- Toolbar & summary --------------------------------------------------- */
-
-.toolbar {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: space-between;
-  align-items: center;
-  gap: 12px;
-  margin-bottom: 16px;
-}
-
-.year-nav {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.year-nav h2 {
-  font-size: 1.4rem;
-  min-width: 5.5ch;
-  text-align: center;
-}
-
-.year-nav button:not(.link) {
-  width: 34px;
-  height: 34px;
-  border-radius: 8px;
-  border: 1px solid var(--c-border);
-  background: var(--c-background);
-  font-size: 1.2rem;
-  cursor: pointer;
-}
-
-.actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.primary,
-.secondary {
-  padding: 8px 16px;
-  border-radius: 8px;
-  cursor: pointer;
-  font-weight: 600;
-}
-
-.primary {
-  background: var(--c-accent);
-  color: #fff;
-  border: 1px solid var(--c-accent);
-}
-
-.primary:disabled {
-  opacity: 0.6;
-  cursor: progress;
-}
-
-.secondary {
-  background: var(--c-background);
-  border: 1px solid var(--c-border);
-}
-
-.link {
-  background: none;
-  border: 0;
-  color: var(--c-accent);
-  text-decoration: underline;
-  cursor: pointer;
-}
-
-.summary {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-  margin: 0 0 16px;
-}
-
-.stat {
-  flex: 1 1 120px;
-  background: var(--c-surface);
-  border-radius: 8px;
-  padding: 10px 14px;
-}
-
-.stat dt {
-  font-size: 0.8rem;
-  color: var(--c-textMuted);
-}
-
-.stat dd {
-  margin: 0;
-  font-size: 1.5rem;
-  font-weight: 700;
-}
-
-.stat--warn dd {
-  color: var(--c-warn);
-}
-
-.notice {
-  background: #fff7e6;
-  border: 1px solid var(--c-bankHoliday);
-  border-radius: 8px;
-  padding: 8px 12px;
-  margin: 0 0 16px;
-}
-
-/* --- People bar & person settings ----------------------------------------- */
-
-.people-bar {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px 12px;
-  margin: 0 0 16px;
-}
-
-.people-bar-label {
-  font-size: 0.85rem;
-  font-weight: 600;
-  color: var(--c-textMuted);
-}
-
-.people-list {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  min-width: 0;
-}
-
-.people-list li {
-  display: flex;
-  min-width: 0;
-}
-
-.person-chip {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-  max-width: 100%;
-  padding: 6px 12px;
-  border: 2px solid var(--c-border);
-  border-radius: 999px;
-  background: var(--c-background);
-  cursor: pointer;
-}
-
-.person-chip[aria-pressed='true'] {
-  border-color: var(--person-colour);
-  background: var(--c-surface);
-  font-weight: 600;
-}
-
-.person-dot {
-  flex: none;
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-  background: var(--person-colour);
-}
-
-.person-name {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.person-left {
-  flex: none;
-  font-size: 0.85rem;
-  font-weight: 400;
-  color: var(--c-textMuted);
-  white-space: nowrap;
-}
-
-.person-left--warn {
-  color: var(--c-warn);
-  font-weight: 600;
-}
-
-.person-add {
-  padding: 6px 12px;
-  border-radius: 999px;
-}
-
-.person-form {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-}
-
-.person-form input[type='text'] {
-  width: 12rem;
-  max-width: 100%;
-}
-
-.actions-name {
-  display: inline-block;
-  max-width: 10ch;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  vertical-align: bottom;
-}
-
-.settings-group {
-  display: grid;
-  gap: 16px;
-  min-width: 0;
-  padding-top: 16px;
-  border-top: 1px solid var(--c-border);
-}
-
-.settings-group:first-child {
-  padding-top: 0;
-  border-top: 0;
-}
-
-.settings-group > h3 {
-  font-size: 0.95rem;
-  overflow-wrap: anywhere;
-}
-
-.colour-swatches {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-}
-
-.colour-swatch,
-.colour-custom {
-  width: 28px;
-  height: 28px;
-  padding: 0;
-  border: 2px solid var(--c-background);
-  border-radius: 50%;
-  box-shadow: 0 0 0 1px var(--c-border);
-  cursor: pointer;
-}
-
-.colour-swatch[aria-pressed='true'],
-.colour-custom--active {
-  box-shadow: 0 0 0 3px var(--c-text);
-}
-
-.colour-swatch:focus-visible,
-.colour-custom:focus-visible {
-  outline: 2px solid var(--c-accent);
-  outline-offset: 3px;
-}
-
-.colour-custom {
-  appearance: none;
-  background: none;
-  overflow: hidden;
-}
-
-.colour-custom::-webkit-color-swatch-wrapper {
-  padding: 0;
-}
-
-.colour-custom::-webkit-color-swatch {
-  border: 0;
-  border-radius: 50%;
-}
-
-.colour-custom::-moz-color-swatch {
-  border: 0;
-  border-radius: 50%;
-}
-
-.remove-person {
-  justify-self: start;
-  padding: 0;
-  color: var(--c-warn);
-}
-
-/* --- Update banner (PWA) --------------------------------------------------- */
-
-.update-banner {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  background: var(--c-background);
-  border: 1px solid var(--c-accent);
-  border-radius: 8px;
-  padding: 8px 12px;
-  margin: 0 0 16px;
-  font-weight: 600;
-}
-
-/* --- Calendar ------------------------------------------------------------ */
-
-.year {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(calc(var(--cell) * 7 + 8px), 1fr));
-  gap: 24px 20px;
-}
-
-.month h3 {
-  font-size: 0.95rem;
-  margin-bottom: 6px;
-}
-
-.week,
-.weekday-row {
-  display: grid;
-  grid-template-columns: repeat(7, var(--cell));
-}
-
-.weekday {
-  font-size: 0.75rem;
-  color: var(--c-textMuted);
-  text-align: center;
-  padding-bottom: 2px;
-}
-
-.day {
-  width: calc(var(--cell) - 4px);
-  height: calc(var(--cell) - 4px);
-  margin: 2px;
-  padding: 0;
-  border: 0;
-  border-radius: 6px;
-  background: transparent;
-  font-size: 0.85rem;
-  font-variant-numeric: tabular-nums;
-}
-
-button.day:not(:disabled) {
-  cursor: pointer;
-}
-
-button.day:not(:disabled):hover {
-  outline: 2px solid var(--person-colour, var(--c-leave));
-  outline-offset: -2px;
-}
-
-.day:focus-visible {
-  outline: 2px solid var(--c-accent);
-  outline-offset: 1px;
-}
-
-.day--non-working {
-  background: var(--c-nonWorking);
-}
-
-.day--bank-holiday {
-  background: var(--c-bankHoliday);
-}
-
-.day--company-day {
-  background: var(--c-companyDay);
-}
-
-/* Leave colours come from each person (see the .day-leave layer), not from
-   these state classes. */
-
-.day {
-  position: relative;
-  display: inline-grid;
-  place-items: center;
-}
-
-/* Equal-width vertical segments, one per person on leave. */
-.day-leave {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  border-radius: inherit;
-  overflow: hidden;
-  pointer-events: none;
-}
-
-.day-leave > span {
-  flex: 1 1 0;
-}
-
-.day-num {
-  position: relative;
-  pointer-events: none;
-}
-
-/* Several people on one day: a halo keeps the number legible over any mix of colours. */
-.day-num--pill {
-  min-width: 1.5em;
-  padding: 0 3px;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.88);
+  font-size: 13px;
+  font-weight: 500;
   color: var(--c-text);
-  font-weight: 600;
-  line-height: 1.35;
 }
 
-.day--out-of-range {
-  opacity: 0.35;
-}
-
-.day--today {
-  box-shadow: inset 0 0 0 2px var(--c-today);
-}
-
-.day:disabled {
-  color: inherit;
-}
-
-.legend {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 16px;
-  list-style: none;
-  padding: 0;
-  margin: 24px 0 0;
-  font-size: 0.85rem;
-}
-
-.legend li {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.swatch {
-  width: 14px;
-  height: 14px;
-  border-radius: 4px;
-}
-
-/* --- Day count inputs (DayCountInput) ------------------------------------- */
-
-.field > label {
-  font-size: 0.85rem;
-  font-weight: 600;
-  color: var(--c-textMuted);
+.field > legend {
+  margin-bottom: 6px;
 }
 
 .field-error {
   margin: 0;
-  font-size: 0.8rem;
-  color: #b42318;
+  font-size: 12px;
+  color: var(--c-warn);
 }
 
 .field-error:empty {
   display: none;
 }
 
-input[aria-invalid='true'] {
-  border-color: #b42318;
-}
-
-/* --- Over-entitlement warning (issue #6) ---------------------------------- */
-
-.warning {
-  display: flex;
-  gap: 8px;
-  align-items: baseline;
-  background: #fff7e6;
-  border: 1px solid var(--c-warn);
-  border-left-width: 4px;
-  border-radius: 8px;
-  padding: 8px 12px;
-  margin: 0 0 16px;
-  color: var(--c-warn);
-  font-weight: 600;
-}
-
-.day--over-limit {
-  outline: 3px solid var(--c-warn);
-  outline-offset: -3px;
-}
-
-.day--over-limit:focus-visible {
-  outline-color: var(--c-accent);
-}
-
-/* --- Range selection (shift-click / drag) ------------------------------- */
-.month-grid {
-  user-select: none;
-  -webkit-user-select: none;
-}
-
-/* Stop touch drags scrolling the page while selecting days. */
-button.day:not(:disabled) {
-  touch-action: none;
-}
-
-.day--selecting {
-  outline: 2px dashed var(--person-colour, var(--c-leave));
-  outline-offset: -2px;
-}
-
-/* --- Company days ---------------------------------------------------------- */
-
-.company-day-list {
-  list-style: none;
-  margin: 0 0 12px;
-  padding: 0;
-  display: grid;
-  gap: 8px;
-}
-
-.company-day-list li {
-  display: flex;
-  justify-content: space-between;
-  align-items: start;
-  gap: 8px;
-  font-size: 0.9rem;
-}
-
-.company-day-text {
-  display: grid;
-  min-width: 0;
-  overflow-wrap: anywhere;
-}
-
-.company-day-meta {
-  font-size: 0.8rem;
-  color: var(--c-textMuted);
-}
-
-.company-day-form {
-  display: grid;
-  gap: 8px;
-}
-
-/* --- Bridge suggestions (screen only; never drawn in the PNG) ------------- */
-
-/* Declared after the other outline rules in this file so a selection or an
-   over-limit mark still wins over the suggestion. */
-.day--bridge {
-  outline: 2px dotted var(--c-accent);
-  outline-offset: -2px;
-}
-
-.day--bridge.day--over-limit {
-  outline: 3px solid var(--c-warn);
-  outline-offset: -3px;
-}
-
-.day--bridge.day--selecting {
-  outline: 2px dashed var(--person-colour, var(--c-leave));
-}
-
-.swatch--bridge {
-  border: 2px dotted var(--c-accent);
-  box-sizing: border-box;
-}
-
-.bridges {
-  margin: 0 0 16px;
-}
-
-.bridges h3 {
-  margin: 0 0 8px;
-  font-size: 1rem;
-}
-
-.bridge-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: grid;
-  gap: 6px;
-}
-
-.bridge-list li {
-  display: flex;
+/* Pill toggle (working days, people chips on phones). */
+.chip {
+  display: inline-flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 6px 10px;
-  border: 1px dotted var(--c-accent);
-  border-radius: 8px;
-}
-
-.bridge-dates {
-  color: var(--c-textMuted);
-}
-
-/* --- Collapsible settings (small screens; see SettingsPanel) --------------- */
-
-.settings-body {
-  display: grid;
-  gap: 16px;
-}
-
-.settings-body[hidden] {
-  display: none;
-}
-
-.settings-toggle {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  width: 100%;
+  justify-content: center;
+  gap: 8px;
   min-height: 44px;
-  margin: -8px 0;
-  padding: 8px 0;
-  border: 0;
-  background: none;
-  font-size: inherit;
-  font-weight: inherit;
-  text-align: left;
+  padding: 0 14px;
+  border: 1px solid var(--input-border);
+  border-radius: 999px;
+  background: var(--c-background);
+  font-weight: 600;
   cursor: pointer;
 }
 
-.settings-toggle-text {
-  display: grid;
-  min-width: 0;
+.chip[aria-pressed='true'] {
+  border-color: var(--c-ink);
 }
 
-.settings-summary {
-  font-size: 0.85rem;
-  font-weight: 400;
-  color: var(--c-textMuted);
-}
-
-.settings-chevron {
+/* On/off switch: <button role="switch" aria-checked> with an empty <span class="switch-thumb">. */
+.switch {
   flex: none;
-  width: 10px;
-  height: 10px;
-  margin-right: 4px;
-  border-right: 2px solid currentColor;
-  border-bottom: 2px solid currentColor;
-  transform: rotate(45deg);
-  transition: transform 0.15s;
-}
-
-.settings-toggle[aria-expanded='true'] .settings-chevron {
-  transform: rotate(-135deg);
-}
-
-.settings-toggle:focus-visible {
-  outline: 2px solid var(--c-accent);
-  outline-offset: 2px;
-  border-radius: 6px;
-}
-
-/* --- Touch devices (issue #8) ----------------------------------------------
-   Everything tappable is at least 44px. Day cells are 44px tall; --cell is
-   48px (44px button + 2 x 2px margin) wherever the month grid has fixed-width
-   columns. Drags: see the touch-action note below. */
-
-@media (pointer: coarse) {
-  :root {
-    --cell: 48px;
-  }
-
-  .chip,
-  .person-chip,
-  .person-add,
-  .remove-person,
-  .primary,
-  .secondary,
-  .link,
-  .year-nav button:not(.link) {
-    min-height: 44px;
-    min-width: 44px;
-  }
-
-  .link {
-    padding: 0 8px;
-  }
-
-  input[type='number'],
-  input[type='text'],
-  input[type='date'],
-  select {
-    min-height: 44px;
-  }
-
-  .checkbox {
-    min-height: 44px;
-  }
-
-  .colour-swatch,
-  .colour-custom {
-    width: 44px;
-    height: 44px;
-  }
-
-  .checkbox input {
-    flex: none;
-    width: 24px;
-    height: 24px;
-  }
-
-  .year-nav button:not(.link) {
-    width: 44px;
-    height: 44px;
-  }
-
-  /* Vertical swipes scroll the page even when they start on a day (a full-width
-     month would otherwise be a scroll dead zone). Horizontal drags along a week
-     still select a range. The browser sends pointercancel if it takes over a
-     vertical pan, which YearCalendar treats as "abort the drag". */
-  button.day:not(:disabled) {
-    touch-action: pan-y;
-  }
-
-  .month-grid {
-    -webkit-touch-callout: none;
-  }
-}
-
-/* --- Phones: one month per row, tidy toolbar (issue #8) --------------------- */
-
-@media (max-width: 600px) {
-  .app {
-    padding: 12px 6px 32px;
-  }
-
-  .app-header {
-    padding: 0 6px;
-    margin-bottom: 12px;
-  }
-
-  .app-header h1 {
-    font-size: 1.4rem;
-  }
-
-  .panel {
-    padding: 12px 8px;
-  }
-
-  .layout {
-    gap: 12px;
-  }
-
-  .field-row {
-    min-width: 0;
-  }
-
-  .company-day-form .field-row {
-    grid-template-columns: 1fr;
-  }
-
-  /* Toolbar: year nav row with arrows flanking the label, actions on their own
-     row as two equal-width buttons. */
-  .toolbar {
-    display: grid;
-    gap: 10px;
-  }
-
-  .year-nav {
-    display: grid;
-    grid-template-columns: 44px 1fr 44px;
-    justify-items: stretch;
-  }
-
-  .year-nav h2 {
-    text-align: center;
-  }
-
-  .year-nav button:not(.link) {
-    width: 44px;
-    height: 44px;
-  }
-
-  .year-nav-reset {
-    grid-column: 1 / -1;
-    justify-self: center;
-    min-height: 44px;
-  }
-
-  .actions {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-  }
-
-  .actions button {
-    min-height: 44px;
-    padding: 8px 6px;
-  }
-
-  .people-bar-label {
-    flex-basis: 100%;
-  }
-
-  .person-form {
-    flex: 1 1 100%;
-  }
-
-  .person-form input[type='text'] {
-    flex: 1 1 8rem;
-    width: auto;
-  }
-
-  .actions-name {
-    max-width: 7ch;
-  }
-
-  .bridge-list li {
-    flex-wrap: wrap;
-  }
-
-  .bridge-list button {
-    min-height: 44px;
-    min-width: 44px;
-  }
-
-  .summary {
-    gap: 8px;
-  }
-
-  .stat {
-    flex-basis: 90px;
-    padding: 8px 10px;
-  }
-
-  .stat dd {
-    font-size: 1.25rem;
-  }
-
-  /* One month per row, with fluid columns so the grid always fits.
-     Trade-off: 7 columns of 44px (308px) plus the page and panel padding
-     (about 30px) and 2px of margin per cell need a viewport of about 352px. At
-     360px and up (all current iPhones and most Android phones) every cell is at
-     least 44 x 44. Below that, cells stay 44px tall and shrink in width
-     (about 38px at 320px) rather than scrolling the page sideways. */
-  .year {
-    grid-template-columns: minmax(0, 1fr);
-    gap: 20px;
-  }
-
-  .week,
-  .weekday-row {
-    grid-template-columns: repeat(7, minmax(0, 1fr));
-  }
-
-  .day {
-    width: auto;
-    height: calc(var(--cell) - 4px);
-    margin: 1px;
-  }
-}
-
-@media (max-width: 600px) and (pointer: coarse) {
-  .day {
-    height: 44px;
-  }
-}
-
-/* Not a preset: show a rainbow so it doesn't look like a duplicate of the current colour. */
-.colour-custom:not(.colour-custom--active) {
-  background: conic-gradient(#dc2626, #eab308, #16a34a, #0891b2, #2563eb, #c026d3, #dc2626);
-}
-
-.colour-custom:not(.colour-custom--active)::-webkit-color-swatch {
-  opacity: 0;
-}
-
-.colour-custom:not(.colour-custom--active)::-moz-color-swatch {
-  opacity: 0;
-}
-
-/* --- Companies bar & company-day popover ------------------------------------ */
-
-.companies {
-  margin: 0 0 16px;
-}
-
-.companies .people-bar {
-  margin-bottom: 0;
-}
-
-.company-chip {
-  --person-colour: var(--c-companyDay);
-}
-
-.company-hint {
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px 12px;
-  margin-top: 8px;
-  padding: 8px 12px;
-  border: 1px solid var(--c-companyDay);
-  border-radius: 8px;
+  width: 48px;
+  height: 28px;
+  padding: 3px;
+  border: 0;
+  border-radius: 999px;
+  background: #d6d2c9;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.switch[aria-checked='true'] {
+  background: var(--c-ink);
+}
+
+.switch-thumb {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+  transition: transform 0.15s ease;
+}
+
+.switch[aria-checked='true'] .switch-thumb {
+  transform: translateX(20px);
+}
+
+/* Segmented control: a .segmented container of buttons with aria-pressed (or role=tab/radio + aria-selected/aria-checked). */
+.segmented {
+  display: grid;
+  grid-auto-columns: minmax(0, 1fr);
+  grid-auto-flow: column;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 12px;
+  background: var(--c-track);
+}
+
+.segmented > button {
+  min-height: 40px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.segmented > button[aria-pressed='true'],
+.segmented > button[aria-selected='true'],
+.segmented > button[aria-checked='true'] {
   background: var(--c-background);
+  box-shadow: var(--shadow-segment);
 }
 
-.field-hint {
+/* Notices above the calendar. */
+.notice {
   margin: 0;
-  font-size: 0.8rem;
-  color: var(--c-textMuted);
-}
-
-.company-block {
-  display: grid;
-  gap: 8px;
-  padding-top: 12px;
-}
-
-.company-block-head {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.company-block-head input {
-  flex: 1 1 auto;
-  min-width: 0;
-}
-
-.company-block-head .remove-person {
-  flex: none;
-}
-
-.company-popover {
-  position: fixed;
-  z-index: 20;
-  width: min(320px, calc(100vw - 16px));
-  display: grid;
-  gap: 12px;
-  padding: 14px;
-  border: 1px solid var(--c-border);
+  padding: 10px 14px;
   border-radius: var(--radius);
-  background: var(--c-background);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+  background: #fbf3df;
+  color: var(--c-bankHolidayText);
+  font-size: 13px;
 }
 
-.company-popover-title {
+.warning {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
   margin: 0;
-  display: grid;
-  gap: 2px;
-  font-size: 0.95rem;
-}
-
-.company-popover-company {
-  font-size: 0.8rem;
-  font-weight: 400;
-  color: var(--c-textMuted);
-  overflow-wrap: anywhere;
-}
-
-.company-popover-actions {
-  display: grid;
-  gap: 8px;
-}
-
-.company-popover-actions .link {
-  justify-self: center;
-}
-
-.danger {
+  padding: 10px 14px;
+  border-radius: var(--radius);
+  background: #fbeceb;
   color: var(--c-warn);
-  border-color: var(--c-warn);
+  font-size: 13px;
 }
 
+.warning svg {
+  flex: none;
+  margin-top: 2px;
+}
+
+/* Touch screens: every control is at least 44px. */
 @media (pointer: coarse) {
-  .company-popover input[type='text'],
-  .company-block-head input {
+  .btn,
+  .btn-sm,
+  .icon-btn {
     min-height: 44px;
   }
 
-  .company-popover-actions button {
-    min-height: 44px;
-  }
-}
-
-/* Phones: a bottom sheet instead of a floating card. */
-@media (max-width: 600px) {
-  .company-popover {
-    left: 0 !important;
-    right: 0;
-    top: auto !important;
-    bottom: 0;
-    width: auto;
-    border-radius: var(--radius) var(--radius) 0 0;
-    padding-bottom: calc(14px + env(safe-area-inset-bottom));
-    opacity: 1 !important;
+  .icon-btn {
+    width: 44px;
   }
 
-  .company-hint .secondary {
+  .btn-link {
     min-height: 44px;
+    padding: 0 8px;
   }
 }

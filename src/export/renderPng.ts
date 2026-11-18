@@ -41,7 +41,27 @@ const LEGEND_ROW_H = 26
 const LEGEND_BASE_H = 30
 const MONTH_TITLE_H = 30
 const WEEKDAY_H = 22
-const FONT = 'system-ui, -apple-system, "Segoe UI", Roboto, sans-serif'
+const FONT = 'Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif'
+const FONT_DISPLAY = '"Space Grotesk", Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif'
+const HALF_TINT = 0.2
+const CELL_RADIUS = 6
+/** Inset of the white month card from the page edge. */
+const CARD_INSET = 16
+const CARD_RADIUS = 18
+
+/**
+ * Loads the web fonts the renderer draws with, so the canvas doesn't fall back to system fonts.
+ * Resolves even when the fonts are unavailable (or `document.fonts` is missing).
+ */
+export async function loadExportFonts(): Promise<void> {
+  if (typeof document === 'undefined' || !document.fonts?.load) return
+  const specs = ['400 13px Inter', '500 13px Inter', '600 13px Inter', '700 13px Inter', '600 15px "Space Grotesk"']
+  try {
+    await Promise.all(specs.map((spec) => document.fonts.load(spec)))
+  } catch {
+    // Fall back to the system fonts in the stack.
+  }
+}
 /** Room kept on the left of a multi-person header for the title and subtitle. */
 const TITLE_RESERVED_W = 310
 const LEGEND_NAME_MAX_W = 150
@@ -141,19 +161,13 @@ function legendEntries(meta: ExportMeta): LegendEntry[] {
 }
 
 function drawHalfSwatch(ctx: CanvasRenderingContext2D, x: number, y: number, size: number, colour: string) {
-  ctx.save()
+  ctx.fillStyle = halfDayTint(colour, HALF_TINT)
   roundRect(ctx, x, y, size, size, 4)
-  ctx.clip()
-  ctx.fillStyle = halfDayTint(colour)
-  ctx.fillRect(x, y, size, size)
-  ctx.fillStyle = colour
-  ctx.beginPath()
-  ctx.moveTo(x + size, y)
-  ctx.lineTo(x + size, y + size)
-  ctx.lineTo(x, y + size)
-  ctx.closePath()
   ctx.fill()
-  ctx.restore()
+  ctx.strokeStyle = colour
+  ctx.lineWidth = 1.5
+  roundRect(ctx, x + 0.75, y + 0.75, size - 1.5, size - 1.5, 3.25)
+  ctx.stroke()
 }
 
 /** Places legend entries left to right, wrapping to a new row when the width runs out. */
@@ -204,8 +218,17 @@ export function renderYearToCanvas(
   if (!ctx) throw new Error('Canvas 2D context unavailable')
   ctx.scale(scale, scale)
 
-  ctx.fillStyle = palette.background
+  ctx.fillStyle = palette.surface
   ctx.fillRect(0, 0, layout.width, layout.height)
+  // White card behind the months and the legend.
+  const cardTop = PADDING + layout.headerHeight - CARD_INSET
+  ctx.fillStyle = palette.background
+  roundRect(ctx, CARD_INSET, cardTop, layout.width - CARD_INSET * 2, layout.height - CARD_INSET - cardTop, CARD_RADIUS)
+  ctx.fill()
+  ctx.strokeStyle = palette.border
+  ctx.lineWidth = 1
+  roundRect(ctx, CARD_INSET + 0.5, cardTop + 0.5, layout.width - CARD_INSET * 2 - 1, layout.height - CARD_INSET - cardTop - 1, CARD_RADIUS)
+  ctx.stroke()
 
   drawHeader(ctx, meta, layout)
 
@@ -216,7 +239,7 @@ export function renderYearToCanvas(
     const y = PADDING + layout.headerHeight + row * (layout.monthHeight + MONTH_GAP)
 
     ctx.fillStyle = palette.text
-    ctx.font = `600 15px ${FONT}`
+    ctx.font = `600 15px ${FONT_DISPLAY}`
     ctx.textAlign = 'left'
     ctx.textBaseline = 'alphabetic'
     ctx.fillText(month.label, x + 2, y + 18)
@@ -288,7 +311,7 @@ function drawHeader(ctx: CanvasRenderingContext2D, meta: ExportMeta, layout: Lay
   ctx.textAlign = 'left'
   ctx.textBaseline = 'alphabetic'
   ctx.fillStyle = palette.text
-  ctx.font = `700 28px ${FONT}`
+  ctx.font = `600 28px ${FONT_DISPLAY}`
   const multi = meta.people.length > 1
   ctx.fillText(multi ? fitText(ctx, meta.title, TITLE_RESERVED_W - 20) : meta.title, PADDING, PADDING + 30)
 
@@ -354,62 +377,82 @@ function drawDay(ctx: CanvasRenderingContext2D, cell: DayCell, x: number, y: num
   const people = cell.people
 
   ctx.globalAlpha = cell.inRange ? 1 : 0.35
-  if (people.length > 0) {
-    ctx.save()
-    roundRect(ctx, left, top, size, size, 5)
-    ctx.clip()
-    const segW = size / people.length
+  if (people.length === 1) {
+    const [p] = people
+    roundRect(ctx, left, top, size, size, CELL_RADIUS)
+    if (p.portion === 'half') {
+      // Half day: pale tint with a ring in the person's colour (told apart by lightness, not hue).
+      ctx.fillStyle = halfDayTint(p.colour, HALF_TINT)
+      ctx.fill()
+      ctx.strokeStyle = p.colour
+      ctx.lineWidth = 1.5
+      roundRect(ctx, left + 0.75, top + 0.75, size - 1.5, size - 1.5, CELL_RADIUS - 0.75)
+      ctx.stroke()
+    } else {
+      ctx.fillStyle = p.colour
+      ctx.fill()
+    }
+  } else if (people.length > 1) {
+    // Equal diagonal bands (135 degrees), one per person.
+    const g = ctx.createLinearGradient(left, top, left + size, top + size)
+    const step = 1 / people.length
     people.forEach((p, i) => {
-      const x0 = left + i * segW
-      const x1 = x0 + segW
-      if (p.portion === 'half') {
-        // Half days: lighter fill with the full colour on the lower-right triangle.
-        ctx.fillStyle = halfDayTint(p.colour)
-        ctx.fillRect(x0, top, segW, size)
-        ctx.fillStyle = p.colour
-        ctx.beginPath()
-        ctx.moveTo(x1, top)
-        ctx.lineTo(x1, top + size)
-        ctx.lineTo(x0, top + size)
-        ctx.closePath()
-        ctx.fill()
-      } else {
-        ctx.fillStyle = p.colour
-        ctx.fillRect(x0, top, segW, size)
-      }
+      const c = p.portion === 'half' ? halfDayTint(p.colour, HALF_TINT) : p.colour
+      g.addColorStop(i * step, c)
+      g.addColorStop((i + 1) * step, c)
     })
-    ctx.restore()
+    ctx.fillStyle = g
+    roundRect(ctx, left, top, size, size, CELL_RADIUS)
+    ctx.fill()
   } else {
     const fill = cellFill(cell)
     if (fill) {
       ctx.fillStyle = fill
-      roundRect(ctx, left, top, size, size, 5)
+      roundRect(ctx, left, top, size, size, CELL_RADIUS)
       ctx.fill()
     }
   }
   if (cell.overLimit) {
     // Same marking as the screen: a warning-coloured outline inside the cell.
     ctx.strokeStyle = palette.warn
-    ctx.lineWidth = 2.5
-    roundRect(ctx, left + 1.25, top + 1.25, size - 2.5, size - 2.5, 4)
+    ctx.lineWidth = 2
+    roundRect(ctx, left + 1, top + 1, size - 2, size - 2, CELL_RADIUS - 1)
     ctx.stroke()
   }
 
   const cx = x + CELL / 2
   const cy = y + CELL / 2 + 1
-  if (people.length > 1) {
-    // Several colours behind the number: give it a small light backdrop.
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.92)'
-    roundRect(ctx, cx - 9, cy - 8, 18, 16, 4)
+  const allFull = people.length > 1 && people.every((p) => p.portion === 'full')
+  if (people.length > 1 && !allFull) {
+    // Light and dark bands behind the number: give it a small light backdrop.
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.88)'
+    roundRect(ctx, cx - 9, cy - 8, 18, 16, 8)
     ctx.fill()
   }
-  ctx.fillStyle =
-    people.length === 1 && people[0].portion === 'full' ? textOn(people[0].colour) : palette.text
-  ctx.font = `500 12px ${FONT}`
+  ctx.fillStyle = numberColour(cell)
+  ctx.font = `${people.length > 0 || cell.kind === 'bank-holiday' || cell.kind === 'company-day' ? 600 : 500} 12px ${FONT}`
   ctx.textAlign = 'center'
   ctx.textBaseline = 'middle'
+  if (allFull) {
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.35)'
+    ctx.shadowOffsetY = 1
+    ctx.shadowBlur = 2
+  }
   ctx.fillText(String(cell.day), cx, cy)
+  ctx.shadowColor = 'transparent'
+  ctx.shadowOffsetY = 0
+  ctx.shadowBlur = 0
   ctx.globalAlpha = 1
+}
+
+function numberColour(cell: DayCell): string {
+  const people = cell.people
+  if (people.length === 1) return people[0].portion === 'full' ? textOn(people[0].colour) : palette.text
+  if (people.length > 1) return people.every((p) => p.portion === 'full') ? '#ffffff' : palette.text
+  if (cell.kind === 'bank-holiday') return palette.bankHolidayText
+  if (cell.kind === 'company-day') return palette.companyDayText
+  if (cell.kind === 'non-working') return palette.nonWorkingText
+  return palette.text
 }
 
 function cellFill(cell: DayCell): string | null {

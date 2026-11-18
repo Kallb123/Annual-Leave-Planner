@@ -1,28 +1,32 @@
-import { useCallback, useRef, useState } from 'react'
-import { CompaniesBar } from './components/CompaniesBar'
+import { useCallback, useState, type CSSProperties } from 'react'
 import { BridgeSuggestions } from './components/BridgeSuggestions'
+import { CompaniesBar, ModeToggle } from './components/CompaniesBar'
+import type { CompanyDayChoice } from './components/CompanyDayPopover'
+import { ChevronLeftIcon, ChevronRightIcon, DownloadIcon, LogoMark, SettingsIcon } from './components/Icons'
+import { newId } from './components/newId'
 import { PeopleBar } from './components/PeopleBar'
-import { SettingsPanel } from './components/SettingsPanel'
+import { SettingsDrawer, type SettingsTab } from './components/SettingsDrawer'
 import { SummaryBar } from './components/SummaryBar'
 import { UpdateBanner } from './components/UpdateBanner'
-import type { CompanyDayChoice } from './components/CompanyDayPopover'
-import { newId } from './components/newId'
 import { Legend, YearCalendar } from './components/YearCalendar'
 import type { Bridge } from './domain/bridges'
+import { formatBridgeDates } from './domain/bridges'
 import { REGIONS, type LeavePortion } from './domain/types'
 import { downloadCanvasAsPng, downloadJson } from './export/download'
-import { renderYearToCanvas } from './export/renderPng'
+import { loadExportFonts, renderYearToCanvas } from './export/renderPng'
 import { useMediaQuery } from './hooks/useMediaQuery'
-import { describePlan, parsePlan, serialisePlan } from './state/plannerState'
+import { companyOf, describePlan, parsePlan, serialisePlan } from './state/plannerState'
 import { usePlanner } from './state/usePlanner'
+import './App.css'
 
 export default function App() {
-  const { state, hadSavedState, dispatch, range, label, settings, activePerson, people, companies, editingCompany, editingCompanyIndex, yearView, summary, bridges, bridgeByDate, overEntitlementWarning, hasBankHolidayData } = usePlanner()
-  // Same breakpoint as the single-column layout in styles.css.
-  const smallScreen = useMediaQuery('(max-width: 860px)')
+  const { state, dispatch, range, label, settings, activePerson, people, companies, editingCompany, editingCompanyIndex, yearView, summary, bridges, bridgeByDate, overEntitlementWarning, hasBankHolidayData } = usePlanner()
+  // Same breakpoint as the phone layout in App.css.
+  const phone = useMediaQuery('(max-width: 600px)')
   const [exporting, setExporting] = useState(false)
   const [importError, setImportError] = useState<string | null>(null)
-  const fileInput = useRef<HTMLInputElement>(null)
+  const [settingsOpen, setSettingsOpen] = useState(false)
+  const [settingsTab, setSettingsTab] = useState<SettingsTab>('people')
 
   const toggleDay = useCallback((date: string) => dispatch({ type: 'cycleLeave', date }), [dispatch])
   const setRange = useCallback(
@@ -49,13 +53,22 @@ export default function App() {
   const companyDayAt = useCallback((date: string) => editingCompanyIndex.get(date), [editingCompanyIndex])
 
   const regionLabel = REGIONS.find((r) => r.id === settings.region)?.label ?? ''
+  const shownBridges = companyMode ? [] : bridges
+  // Phones edit company days through a toggle: the company being edited, else the active person's, else the first.
+  const toggleCompany = editingCompany ?? companyOf(companies, activePerson) ?? companies[0] ?? null
+
+  function openSettings(tab: SettingsTab = 'people') {
+    setSettingsTab(tab)
+    setSettingsOpen(true)
+  }
 
   async function exportPng() {
     setExporting(true)
     try {
+      await loadExportFonts()
       const canvas = renderYearToCanvas(yearView, {
         title: `Annual leave ${label}`,
-        subtitle: `${range.start} to ${range.end} · ${regionLabel} bank holidays`,
+        subtitle: `${formatBridgeDates(range.start, range.end)} · ${regionLabel}`,
         people: people.map((p) => ({
           name: p.person.name,
           colour: p.person.colour,
@@ -76,7 +89,7 @@ export default function App() {
   async function importJson(file: File) {
     const result = parsePlan(await file.text())
     if (!result.ok) {
-      setImportError(result.message)
+      setImportError(`${result.message} Your current plan hasn’t changed.`)
       return
     }
     setImportError(null)
@@ -86,85 +99,94 @@ export default function App() {
     }
   }
 
+  const leaveHint = phone
+    ? 'Tap: full, half, clear. Swipe for a range.'
+    : 'Click a working day for a full day, again for half, again to clear. Shift-click or drag for a range.'
+  const companyHint = phone
+    ? 'Tap a day to add, change or delete.'
+    : `Click a day to add, change or delete a company day; it applies to everyone at ${editingCompany?.name ?? 'this company'}. Drag or shift-click for a range.`
+
   return (
-    <div className="app">
-      <UpdateBanner />
+    <div className={`app${phone ? ' app--phone' : ''}`} style={{ '--person-colour': activePerson.colour } as CSSProperties}>
       <header className="app-header">
-        <h1>Annual Leave Planner</h1>
-        <p className="tagline">
-          {editingCompany
-            ? `Editing company days for ${editingCompany.name}. Click or tap a day to add, change or delete a company day. Shift-click or drag to pick a range; weekends and bank holidays are skipped.`
-            : 'Leave is booked for the person selected below. Click or tap a working day to book leave, again for a half day, and again to clear. Shift-click or drag (swipe sideways on touch screens) to book or clear a range.'}
-        </p>
-      </header>
+        <div className="brand">
+          <LogoMark />
+          <h1 className="brand-name">Leave Planner</h1>
+        </div>
 
-      <div className="layout">
-        <aside>
-          <SettingsPanel collapsible={smallScreen} defaultCollapsed={hadSavedState} settings={settings} activePerson={activePerson} peopleCount={people.length} companies={companies} dispatch={dispatch} />
-        </aside>
+        <div className="year-nav">
+          <button type="button" className="btn btn-ghost icon-btn year-nav-arrow" onClick={() => dispatch({ type: 'shiftYear', by: -1 })} aria-label="Previous leave year">
+            <ChevronLeftIcon size={18} />
+          </button>
+          <div className="year-nav-label">
+            <span className="year-nav-year" aria-live="polite">
+              {label}
+            </span>
+            <span className="year-nav-sub">
+              {phone ? regionLabel : `${formatBridgeDates(range.start, range.end)} · ${regionLabel}`}
+            </span>
+          </div>
+          <button type="button" className="btn btn-ghost icon-btn year-nav-arrow" onClick={() => dispatch({ type: 'shiftYear', by: 1 })} aria-label="Next leave year">
+            <ChevronRightIcon size={18} />
+          </button>
+          {state.yearOffset !== 0 && (
+            <button type="button" className="btn btn-link year-nav-reset" onClick={() => dispatch({ type: 'resetYear' })}>
+              Current year
+            </button>
+          )}
+        </div>
 
-        <main className="panel">
-          <div className="toolbar">
-            <div className="year-nav">
-              <button type="button" onClick={() => dispatch({ type: 'shiftYear', by: -1 })} aria-label="Previous leave year">
-                ‹
+        <div className="header-actions">
+          {phone ? (
+            <>
+              <button type="button" className="btn btn-ghost icon-btn" aria-label="Settings" onClick={() => openSettings()}>
+                <SettingsIcon size={20} />
               </button>
-              <h2>{label}</h2>
-              <button type="button" onClick={() => dispatch({ type: 'shiftYear', by: 1 })} aria-label="Next leave year">
-                ›
+              <button type="button" className="btn btn-primary icon-btn" aria-label={exporting ? 'Exporting PNG' : 'Download PNG'} onClick={exportPng} disabled={exporting}>
+                <DownloadIcon size={18} />
               </button>
-              {state.yearOffset !== 0 && (
-                <button type="button" className="link year-nav-reset" onClick={() => dispatch({ type: 'resetYear' })}>
-                  Current year
-                </button>
-              )}
-            </div>
-            <div className="actions">
-              <button
-                type="button"
-                className="secondary"
-                onClick={() => {
-                  if (confirm(`Clear all of ${activePerson.name}’s leave in ${label}?`)) {
-                    dispatch({ type: 'clearLeaveInRange', start: range.start, end: range.end })
-                  }
-                }}
-              >
-                Clear <span className="actions-name">{activePerson.name}</span>’s year
+            </>
+          ) : (
+            <>
+              <button type="button" className="btn btn-ghost" onClick={() => openSettings()}>
+                <SettingsIcon />
+                Settings
               </button>
-              <button type="button" className="primary" onClick={exportPng} disabled={exporting}>
+              <button type="button" className="btn btn-primary" onClick={exportPng} disabled={exporting}>
+                <DownloadIcon />
                 {exporting ? 'Exporting…' : 'Download PNG'}
               </button>
-              <button type="button" className="secondary" onClick={exportJson}>
-                Export JSON
-              </button>
-              <button type="button" className="secondary" onClick={() => fileInput.current?.click()}>
-                Import JSON
-              </button>
-              <input
-                ref={fileInput}
-                type="file"
-                accept="application/json,.json"
-                hidden
-                onChange={(e) => {
-                  const file = e.target.files?.[0]
-                  e.target.value = ''
-                  if (file) void importJson(file)
-                }}
-              />
-            </div>
-          </div>
-
-          {importError && (
-            <p className="notice" role="alert">
-              {importError} Your current plan hasn’t changed.
-            </p>
+            </>
           )}
+        </div>
+      </header>
 
-          <PeopleBar people={people} editing={companyMode} dispatch={dispatch} />
+      <UpdateBanner />
 
-          <CompaniesBar companies={companies} editingCompanyId={state.editingCompanyId} range={range} dispatch={dispatch} />
+      <div className="layout">
+        {phone ? (
+          <PeopleBar people={people} companies={companies} editing={companyMode} variant="chips" dispatch={dispatch} />
+        ) : (
+          <aside className="rail" aria-label="People, company days and bridge ideas">
+            <PeopleBar people={people} companies={companies} editing={companyMode} dispatch={dispatch} />
+            <CompaniesBar companies={companies} people={people.map((p) => p.person)} editingCompanyId={state.editingCompanyId} range={range} dispatch={dispatch} />
+            <BridgeSuggestions bridges={shownBridges} name={activePerson.name} onBook={bookBridge} />
+          </aside>
+        )}
 
-          <SummaryBar summary={summary} warning={overEntitlementWarning} />
+        <main className="main">
+          <SummaryBar
+            summary={summary}
+            name={activePerson.name}
+            colour={activePerson.colour}
+            label={label}
+            allowanceDays={settings.allowanceDays}
+            carryOverDays={settings.carryOverDays}
+            warning={overEntitlementWarning}
+            compact={phone}
+          />
+
+          {phone && <BridgeSuggestions bridges={shownBridges} name={activePerson.name} onBook={bookBridge} compact />}
 
           {!hasBankHolidayData && (
             <p className="notice" role="status">
@@ -172,24 +194,79 @@ export default function App() {
             </p>
           )}
 
-          <BridgeSuggestions bridges={companyMode ? [] : bridges} onBook={bookBridge} />
+          {phone && toggleCompany && <ModeToggle company={toggleCompany} editing={companyMode} dispatch={dispatch} />}
 
-          <YearCalendar
-            view={yearView}
-            activeColour={companyMode ? 'var(--c-companyDay)' : activePerson.colour}
-            bridgeByDate={companyMode ? undefined : bridgeByDate}
-            onToggleDay={toggleDay}
-            onSetRange={setRange}
-            company={editingCompany}
-            companyDayAt={companyDayAt}
-            onAssignCompanyDays={assignCompanyDays}
-            onRemoveCompanyDays={removeCompanyDays}
-          />
-          <Legend people={people.map((p) => ({ id: p.person.id, name: p.person.name, colour: p.person.colour }))} activeColour={activePerson.colour} showBridge={!companyMode && bridges.length > 0} />
+          <section className="calendar-card" aria-label={`Leave calendar ${label}`}>
+            {!phone && (
+              <div className="mode-strip">
+                {companyMode ? (
+                  <>
+                    <div className="mode-strip-text">
+                      <span className="mode-pill mode-pill--company">
+                        <span className="mode-pill-mark" aria-hidden="true" />
+                        Editing company days for {editingCompany.name}
+                      </span>
+                      <span className="mode-strip-hint">{companyHint}</span>
+                    </div>
+                    <button type="button" className="btn btn-primary btn-sm" onClick={() => dispatch({ type: 'stopEditingCompany' })}>
+                      Done
+                    </button>
+                  </>
+                ) : (
+                  <div className="mode-strip-text">
+                    <span className="mode-pill">
+                      <span className="mode-pill-dot" aria-hidden="true" />
+                      Booking for {activePerson.name}
+                    </span>
+                    <span className="mode-strip-hint">{leaveHint}</span>
+                  </div>
+                )}
+              </div>
+            )}
+
+            <YearCalendar
+              view={yearView}
+              activeColour={companyMode ? 'var(--c-companyDayMark)' : activePerson.colour}
+              bridgeByDate={companyMode ? undefined : bridgeByDate}
+              onToggleDay={toggleDay}
+              onSetRange={setRange}
+              company={editingCompany}
+              companyDayAt={companyDayAt}
+              onAssignCompanyDays={assignCompanyDays}
+              onRemoveCompanyDays={removeCompanyDays}
+            />
+            <Legend people={people.map((p) => ({ id: p.person.id, name: p.person.name, colour: p.person.colour }))} activeColour={activePerson.colour} showBridge={!companyMode && bridges.length > 0} />
+          </section>
+
+          <footer className="app-footer">Saved in this browser only · Version {__APP_VERSION__}</footer>
         </main>
       </div>
 
-      <footer className="app-footer">Version {__APP_VERSION__}</footer>
+      {phone && (
+        <div className="hint-bar">
+          <span className={`hint-bar-mark${companyMode ? ' hint-bar-mark--company' : ''}`} aria-hidden="true" />
+          <span>
+            <strong>{companyMode ? `Editing ${editingCompany.name} days` : `Booking for ${activePerson.name}`}</strong> · {companyMode ? companyHint : leaveHint}
+          </span>
+        </div>
+      )}
+
+      <SettingsDrawer
+        open={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+        tab={settingsTab}
+        onTabChange={setSettingsTab}
+        settings={settings}
+        activePerson={activePerson}
+        people={people}
+        companies={companies}
+        range={range}
+        label={label}
+        dispatch={dispatch}
+        onExportJson={exportJson}
+        onImportFile={(file) => void importJson(file)}
+        importError={importError}
+      />
     </div>
   )
 }

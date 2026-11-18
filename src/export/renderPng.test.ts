@@ -1,8 +1,8 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { buildYearView } from '../domain/calendar'
 import { NO_COMPANY_DAYS } from '../domain/companyDays'
 import { DEFAULT_SETTINGS } from '../domain/types'
-import { computeLayout } from './renderPng'
+import { computeLayout, loadExportFonts } from './renderPng'
 
 const view = buildYearView({ start: '2026-01-01', end: '2026-12-31' }, DEFAULT_SETTINGS, {}, new Map(), NO_COMPANY_DAYS)
 
@@ -32,5 +32,31 @@ describe('computeLayout', () => {
     expect(two.legendRows).toBe(2)
     expect(two.height).toBeGreaterThan(one.height)
     expect(computeLayout(view, 4, 3, 0).legendRows).toBe(1)
+  })
+})
+
+describe('loadExportFonts', () => {
+  it('resolves when document.fonts is unavailable', async () => {
+    await expect(loadExportFonts()).resolves.toBeUndefined()
+  })
+
+  it('resolves when a font fails to load', async () => {
+    vi.stubGlobal('document', { fonts: { load: () => Promise.reject(new Error('nope')) } })
+    try {
+      await expect(loadExportFonts()).resolves.toBeUndefined()
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  })
+
+  it('loads every weight it draws with', async () => {
+    const load = vi.fn(() => Promise.resolve([]))
+    vi.stubGlobal('document', { fonts: { load } })
+    try {
+      await loadExportFonts()
+      expect(load).toHaveBeenCalledTimes(5)
+    } finally {
+      vi.unstubAllGlobals()
+    }
   })
 })

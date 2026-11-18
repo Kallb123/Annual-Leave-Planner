@@ -8,8 +8,8 @@ export function UpdateBanner() {
 
   return (
     <div className="update-banner" role="status">
-      <span>Update available</span>
-      <button type="button" className="primary" onClick={updateStore.applyUpdate}>
+      <span>A new version is ready.</span>
+      <button type="button" className="btn btn-primary btn-sm" onClick={updateStore.applyUpdate}>
         Reload
       </button>
     </div>
