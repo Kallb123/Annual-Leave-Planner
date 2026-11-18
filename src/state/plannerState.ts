@@ -1,4 +1,6 @@
-import { isIsoDate } from '../domain/dates'
+import { isBookable } from '../domain/allowance'
+import { bankHolidayIndex } from '../domain/bankHolidays'
+import { eachDay, isIsoDate } from '../domain/dates'
 import {
   DEFAULT_SETTINGS,
   REGIONS,
@@ -21,6 +23,7 @@ export interface PlannerState {
 export type PlannerAction =
   | { type: 'updateSettings'; patch: Partial<Settings> }
   | { type: 'cycleLeave'; date: string }
+  | { type: 'setLeaveRange'; start: string; end: string; portion: LeavePortion | undefined }
   | { type: 'clearLeaveInRange'; start: string; end: string }
   | { type: 'shiftYear'; by: number }
   | { type: 'resetYear' }
@@ -44,6 +47,20 @@ export function plannerReducer(state: PlannerState, action: PlannerAction): Plan
       const next = nextPortion(leave[action.date])
       if (next) leave[action.date] = next
       else delete leave[action.date]
+      return { ...state, leave }
+    }
+    case 'setLeaveRange': {
+      // Start/end may arrive in either order (drag or shift-click backwards).
+      const [from, to] = action.start <= action.end ? [action.start, action.end] : [action.end, action.start]
+      // The holiday index is derived from settings here rather than passed in, so
+      // the action stays a plain serialisable value.
+      const holidays = bankHolidayIndex(state.settings.region)
+      const leave = { ...state.leave }
+      for (const date of eachDay(from, to)) {
+        if (!isBookable(date, state.settings, holidays)) continue
+        if (action.portion) leave[date] = action.portion
+        else delete leave[date]
+      }
       return { ...state, leave }
     }
     case 'clearLeaveInRange': {

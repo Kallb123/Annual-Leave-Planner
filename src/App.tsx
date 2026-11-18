@@ -2,7 +2,7 @@ import { useCallback, useState } from 'react'
 import { SettingsPanel } from './components/SettingsPanel'
 import { SummaryBar } from './components/SummaryBar'
 import { Legend, YearCalendar } from './components/YearCalendar'
-import { REGIONS } from './domain/types'
+import { REGIONS, type LeavePortion } from './domain/types'
 import { downloadCanvasAsPng } from './export/download'
 import { renderYearToCanvas } from './export/renderPng'
 import { usePlanner } from './state/usePlanner'
@@ -12,6 +12,11 @@ export default function App() {
   const [exporting, setExporting] = useState(false)
 
   const toggleDay = useCallback((date: string) => dispatch({ type: 'cycleLeave', date }), [dispatch])
+  const setRange = useCallback(
+    (start: string, end: string, portion: LeavePortion | undefined) =>
+      dispatch({ type: 'setLeaveRange', start, end, portion }),
+    [dispatch],
+  )
 
   const regionLabel = REGIONS.find((r) => r.id === state.settings.region)?.label ?? ''
 
@@ -33,7 +38,7 @@ export default function App() {
     <div className="app">
       <header className="app-header">
         <h1>Annual Leave Planner</h1>
-        <p className="tagline">Click a working day to book leave. Click again for a half day, and again to clear.</p>
+        <p className="tagline">Click a working day to book leave, again for a half day, and again to clear. Shift-click or drag to book or clear a range.</p>
       </header>
 
       <div className="layout">
@@ -83,7 +88,7 @@ export default function App() {
             </p>
           )}
 
-          <YearCalendar view={yearView} onToggleDay={toggleDay} />
+          <YearCalendar view={yearView} onToggleDay={toggleDay} onSetRange={setRange} />
           <Legend />
         </main>
       </div>
