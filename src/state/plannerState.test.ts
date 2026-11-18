@@ -44,6 +44,49 @@ describe('plannerReducer', () => {
     expect(s.leave).toEqual({ '2026-03-01': 'full' })
   })
 
+  describe('setLeaveRange', () => {
+    it('books working days across a month boundary, skipping weekends', () => {
+      const s = plannerReducer(base, { type: 'setLeaveRange', start: '2026-11-26', end: '2026-12-02', portion: 'full' })
+      expect(Object.keys(s.leave).sort()).toEqual([
+        '2026-11-26', '2026-11-27', '2026-11-30', '2026-12-01', '2026-12-02',
+      ])
+    })
+
+    it('accepts start and end in either order', () => {
+      const a = plannerReducer(base, { type: 'setLeaveRange', start: '2026-11-23', end: '2026-11-25', portion: 'half' })
+      const b = plannerReducer(base, { type: 'setLeaveRange', start: '2026-11-25', end: '2026-11-23', portion: 'half' })
+      expect(a.leave).toEqual(b.leave)
+      expect(Object.keys(a.leave)).toHaveLength(3)
+    })
+
+    it('skips bank holidays and non-working days', () => {
+      // 2026-12-25 (Fri) and 2026-12-28 (Mon, substitute) are bank holidays.
+      const s = plannerReducer(base, { type: 'setLeaveRange', start: '2026-12-24', end: '2026-12-29', portion: 'full' })
+      expect(Object.keys(s.leave).sort()).toEqual(['2026-12-24', '2026-12-29'])
+      const noWed = plannerReducer(
+        { ...base, settings: { ...DEFAULT_SETTINGS, workingDays: [1, 2, 4, 5] } },
+        { type: 'setLeaveRange', start: '2026-11-23', end: '2026-11-27', portion: 'full' },
+      )
+      expect(noWed.leave['2026-11-25']).toBeUndefined()
+      expect(Object.keys(noWed.leave)).toHaveLength(4)
+    })
+
+    it('clears bookable days when portion is undefined, leaving the rest alone', () => {
+      const start: PlannerState = {
+        ...base,
+        leave: { '2026-11-23': 'full', '2026-11-24': 'half', '2026-11-30': 'full' },
+      }
+      const s = plannerReducer(start, { type: 'setLeaveRange', start: '2026-11-23', end: '2026-11-25', portion: undefined })
+      expect(s.leave).toEqual({ '2026-11-30': 'full' })
+    })
+
+    it('overwrites existing portions', () => {
+      const start: PlannerState = { ...base, leave: { '2026-11-24': 'half' } }
+      const s = plannerReducer(start, { type: 'setLeaveRange', start: '2026-11-23', end: '2026-11-24', portion: 'full' })
+      expect(s.leave).toEqual({ '2026-11-23': 'full', '2026-11-24': 'full' })
+    })
+  })
+
   it('sanitises settings updates', () => {
     const s = plannerReducer(base, {
       type: 'updateSettings',

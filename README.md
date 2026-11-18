@@ -2,7 +2,7 @@
 
 A small web app for planning annual leave across a leave year and downloading the result as a PNG.
 
-- **Plan visually.** Click a working day to book a full day, click again for a half day, and once more to clear it.
+- **Plan visually.** Click a working day to book a full day, click again for a half day, and once more to clear it. Shift-click or drag (mouse or touch) to book or clear a whole range; weekends, non-working days and bank holidays are skipped.
 - **Your leave year.** Set your allowance, any carried-over days, and the date your leave year resets (for example 1 January or 1 April).
 - **UK bank holidays.** Bank holidays for England & Wales, Scotland or Northern Ireland are shown automatically. You can also count them against your allowance if your contract does.
 - **Part-time friendly.** Choose which days of the week you work. Leave can only be booked on working days.

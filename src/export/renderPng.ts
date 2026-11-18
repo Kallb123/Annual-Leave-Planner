@@ -16,6 +16,8 @@ export interface ExportMeta {
   title: string
   subtitle?: string
   summary: AllowanceSummary
+  /** Over-entitlement warning (see `overEntitlementMessage`); drawn under the summary. */
+  warning?: string
 }
 
 export interface ExportOptions {
@@ -122,15 +124,34 @@ function drawHeader(ctx: CanvasRenderingContext2D, meta: ExportMeta, layout: Lay
 
   const s = meta.summary
   const parts = [
-    `Entitlement ${fmt(s.entitlement)}`,
-    `Booked ${fmt(s.booked)}`,
-    ...(s.bankHolidaysDeducted ? [`Bank holidays ${fmt(s.bankHolidaysDeducted)}`] : []),
-    `Remaining ${fmt(s.remaining)}`,
+    { text: `Entitlement ${fmt(s.entitlement)}`, color: palette.text },
+    { text: `Booked ${fmt(s.booked)}`, color: palette.text },
+    ...(s.bankHolidaysDeducted
+      ? [{ text: `Bank holidays ${fmt(s.bankHolidaysDeducted)}`, color: palette.text }]
+      : []),
+    { text: `Remaining ${fmt(s.remaining)}`, color: s.remaining < 0 ? palette.warn : palette.text },
   ]
+  // Drawn right to left from the right edge so each part can have its own colour.
+  const separator = '   ·   '
   ctx.textAlign = 'right'
-  ctx.fillStyle = palette.text
   ctx.font = `600 15px ${FONT}`
-  ctx.fillText(parts.join('   ·   '), layout.width - PADDING, PADDING + 30)
+  let x = layout.width - PADDING
+  for (let i = parts.length - 1; i >= 0; i--) {
+    ctx.fillStyle = parts[i].color
+    ctx.fillText(parts[i].text, x, PADDING + 30)
+    x -= ctx.measureText(parts[i].text).width
+    if (i > 0) {
+      ctx.fillStyle = palette.text
+      ctx.fillText(separator, x, PADDING + 30)
+      x -= ctx.measureText(separator).width
+    }
+  }
+
+  if (meta.warning) {
+    ctx.fillStyle = palette.warn
+    ctx.font = `600 14px ${FONT}`
+    ctx.fillText(meta.warning, layout.width - PADDING, PADDING + 56)
+  }
 }
 
 function drawDay(ctx: CanvasRenderingContext2D, cell: DayCell, x: number, y: number) {
@@ -153,6 +174,13 @@ function drawDay(ctx: CanvasRenderingContext2D, cell: DayCell, x: number, y: num
     ctx.lineTo(x + inset, y + inset + size)
     ctx.closePath()
     ctx.fill()
+  }
+  if (cell.overLimit) {
+    // Same marking as the screen: a warning-coloured outline inside the cell.
+    ctx.strokeStyle = palette.warn
+    ctx.lineWidth = 2.5
+    roundRect(ctx, x + inset + 1.25, y + inset + 1.25, size - 2.5, size - 2.5, 4)
+    ctx.stroke()
   }
 
   ctx.fillStyle = cell.leave === 'full' ? '#ffffff' : palette.text

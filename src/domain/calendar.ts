@@ -30,6 +30,8 @@ export interface DayCell {
   leave: LeavePortion | null
   holidayName: string | null
   isToday: boolean
+  /** Booked leave that takes the total over the entitlement. */
+  overLimit: boolean
 }
 
 export function buildYearView(
@@ -38,6 +40,7 @@ export function buildYearView(
   leave: LeaveEntries,
   holidays: BankHolidayIndex,
   today: IsoDate | null = null,
+  overLimit: ReadonlySet<IsoDate> = new Set(),
 ): YearView {
   const start = parseIso(range.start)
   const end = parseIso(range.end)
@@ -45,7 +48,7 @@ export function buildYearView(
 
   let { year, month } = start
   while (year < end.year || (year === end.year && month <= end.month)) {
-    months.push(buildMonth(year, month, range, settings, leave, holidays, today))
+    months.push(buildMonth(year, month, range, settings, leave, holidays, today, overLimit))
     month += 1
     if (month > 12) {
       month = 1
@@ -63,6 +66,7 @@ function buildMonth(
   leave: LeaveEntries,
   holidays: BankHolidayIndex,
   today: IsoDate | null,
+  overLimit: ReadonlySet<IsoDate>,
 ): MonthView {
   const cells: (DayCell | null)[] = []
   // Monday-first offset: Mon → 0 … Sun → 6
@@ -80,6 +84,7 @@ function buildMonth(
       leave: inRange ? (leave[date] ?? null) : null,
       holidayName: holidays.get(date) ?? null,
       isToday: date === today,
+      overLimit: inRange && overLimit.has(date),
     })
   }
   while (cells.length % 7 !== 0) cells.push(null)

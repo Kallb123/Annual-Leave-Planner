@@ -41,10 +41,10 @@ People with a fixed annual leave allowance want to see the whole leave year at a
 
 ### M1 – Usable v1
 
-- [ ] Drag or shift-click to select a range of days
+- [x] Drag or shift-click to select a range of days
 - [ ] Choose AM or PM for half days, and show which in the UI and PNG
-- [ ] Better number inputs: allow an empty field while typing, validate on blur
-- [ ] Warn when booked leave exceeds the entitlement (currently only shown in the summary)
+- [x] Better number inputs: allow an empty field while typing, validate on blur
+- [x] Warn when booked leave exceeds the entitlement (notice above the calendar, over-limit days marked on screen and in the PNG)
 - [ ] "Bridge" suggestions: highlight days that join bank holidays to weekends
 - [ ] Mobile layout pass: larger touch targets and a collapsible settings panel
 - [ ] Deploy to production (Vercel or Cloudflare Pages) and add the URL to the README

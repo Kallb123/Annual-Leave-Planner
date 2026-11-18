@@ -84,6 +84,7 @@ h3 {
 
 .field {
   display: grid;
+  align-content: start;
   gap: 6px;
   border: 0;
   padding: 0;
@@ -111,6 +112,7 @@ h3 {
 }
 
 input[type='number'],
+input[type='text'],
 select {
   width: 100%;
   padding: 8px 10px;
@@ -242,7 +244,7 @@ select {
 }
 
 .stat--warn dd {
-  color: #c2410c;
+  color: var(--c-warn);
 }
 
 .notice {
@@ -354,4 +356,67 @@ button.day:not(:disabled):hover {
   width: 14px;
   height: 14px;
   border-radius: 4px;
+}
+
+/* --- Day count inputs (DayCountInput) ------------------------------------- */
+
+.field > label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--c-textMuted);
+}
+
+.field-error {
+  margin: 0;
+  font-size: 0.8rem;
+  color: #b42318;
+}
+
+.field-error:empty {
+  display: none;
+}
+
+input[aria-invalid='true'] {
+  border-color: #b42318;
+}
+
+/* --- Over-entitlement warning (issue #6) ---------------------------------- */
+
+.warning {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  background: #fff7e6;
+  border: 1px solid var(--c-warn);
+  border-left-width: 4px;
+  border-radius: 8px;
+  padding: 8px 12px;
+  margin: 0 0 16px;
+  color: var(--c-warn);
+  font-weight: 600;
+}
+
+.day--over-limit {
+  outline: 3px solid var(--c-warn);
+  outline-offset: -3px;
+}
+
+.day--over-limit:focus-visible {
+  outline-color: var(--c-accent);
+}
+
+/* --- Range selection (shift-click / drag) ------------------------------- */
+.month-grid {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* Stop touch drags scrolling the page while selecting days. */
+button.day:not(:disabled) {
+  touch-action: none;
+}
+
+.day--selecting {
+  outline: 2px dashed var(--c-leave);
+  outline-offset: -2px;
 }

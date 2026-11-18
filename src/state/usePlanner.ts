@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useReducer } from 'react'
-import { summarise } from '../domain/allowance'
+import { overAllocatedDates, overEntitlementMessage, summarise } from '../domain/allowance'
 import { bankHolidayIndex, coversRange } from '../domain/bankHolidays'
 import { buildYearView } from '../domain/calendar'
 import { parseIso, todayIso } from '../domain/dates'
@@ -28,9 +28,14 @@ export function usePlanner() {
 
   const holidays = useMemo(() => bankHolidayIndex(settings.region), [settings.region])
 
+  const overLimit = useMemo(
+    () => overAllocatedDates(range, settings, leave, holidays),
+    [range, settings, leave, holidays],
+  )
+
   const yearView = useMemo(
-    () => buildYearView(range, settings, leave, holidays, today),
-    [range, settings, leave, holidays, today],
+    () => buildYearView(range, settings, leave, holidays, today, overLimit),
+    [range, settings, leave, holidays, today, overLimit],
   )
 
   const summary = useMemo(
@@ -38,13 +43,16 @@ export function usePlanner() {
     [range, settings, leave, holidays],
   )
 
+  const label = leaveYearLabel(range)
+
   return {
     state,
     dispatch,
     range,
-    label: leaveYearLabel(range),
+    label,
     yearView,
     summary,
+    overEntitlementWarning: overEntitlementMessage(summary.remaining, label),
     hasBankHolidayData: coversRange(range, settings.region),
   }
 }

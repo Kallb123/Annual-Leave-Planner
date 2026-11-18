@@ -1,3 +1,4 @@
+import { DayCountInput } from './DayCountInput'
 import { MONTH_NAMES, daysInMonth } from '../domain/dates'
 import { REGIONS, type Region, type Settings } from '../domain/types'
 import type { PlannerAction } from '../state/plannerState'
@@ -27,28 +28,16 @@ export function SettingsPanel({ settings, dispatch }: Props) {
       <h2 id="settings-heading">Settings</h2>
 
       <div className="field-row">
-        <label className="field">
-          <span>Annual allowance (days)</span>
-          <input
-            type="number"
-            min={0}
-            max={366}
-            step={0.5}
-            value={settings.allowanceDays}
-            onChange={(e) => update({ allowanceDays: e.target.valueAsNumber })}
-          />
-        </label>
-        <label className="field">
-          <span>Carried over (days)</span>
-          <input
-            type="number"
-            min={0}
-            max={366}
-            step={0.5}
-            value={settings.carryOverDays}
-            onChange={(e) => update({ carryOverDays: e.target.valueAsNumber })}
-          />
-        </label>
+        <DayCountInput
+          label="Annual allowance (days)"
+          value={settings.allowanceDays}
+          onCommit={(allowanceDays) => update({ allowanceDays })}
+        />
+        <DayCountInput
+          label="Carried over (days)"
+          value={settings.carryOverDays}
+          onCommit={(carryOverDays) => update({ carryOverDays })}
+        />
       </div>
 
       <fieldset className="field">
