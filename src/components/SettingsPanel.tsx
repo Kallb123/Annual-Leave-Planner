@@ -1,6 +1,7 @@
+import { CompanyDaysSection } from './CompanyDaysSection'
 import { DayCountInput } from './DayCountInput'
 import { MONTH_NAMES, daysInMonth } from '../domain/dates'
-import { REGIONS, type Region, type Settings } from '../domain/types'
+import { REGIONS, type CompanyDay, type Region, type Settings } from '../domain/types'
 import type { PlannerAction } from '../state/plannerState'
 
 const WEEKDAYS = [
@@ -15,10 +16,11 @@ const WEEKDAYS = [
 
 interface Props {
   settings: Settings
+  companyDays: CompanyDay[]
   dispatch: (action: PlannerAction) => void
 }
 
-export function SettingsPanel({ settings, dispatch }: Props) {
+export function SettingsPanel({ settings, companyDays, dispatch }: Props) {
   const update = (patch: Partial<Settings>) => dispatch({ type: 'updateSettings', patch })
   // Leap years don't matter for picking a reset day; 2001 is a non-leap year, so cap Feb at 28.
   const maxStartDay = daysInMonth(2001, settings.leaveYearStartMonth)
@@ -113,6 +115,8 @@ export function SettingsPanel({ settings, dispatch }: Props) {
           })}
         </div>
       </fieldset>
+
+      <CompanyDaysSection companyDays={companyDays} dispatch={dispatch} />
     </section>
   )
 }

@@ -315,6 +315,10 @@ button.day:not(:disabled):hover {
   background: var(--c-bankHoliday);
 }
 
+.day--company-day {
+  background: var(--c-companyDay);
+}
+
 .day--leave-full {
   background: var(--c-leave);
   color: #fff;
@@ -419,4 +423,38 @@ button.day:not(:disabled) {
 .day--selecting {
   outline: 2px dashed var(--c-leave);
   outline-offset: -2px;
+}
+
+/* --- Company days ---------------------------------------------------------- */
+
+.company-day-list {
+  list-style: none;
+  margin: 0 0 12px;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.company-day-list li {
+  display: flex;
+  justify-content: space-between;
+  align-items: start;
+  gap: 8px;
+  font-size: 0.9rem;
+}
+
+.company-day-text {
+  display: grid;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.company-day-meta {
+  font-size: 0.8rem;
+  color: var(--c-textMuted);
+}
+
+.company-day-form {
+  display: grid;
+  gap: 8px;
 }

@@ -5,6 +5,7 @@ A small web app for planning annual leave across a leave year and downloading th
 - **Plan visually.** Click a working day to book a full day, click again for a half day, and once more to clear it. Shift-click or drag (mouse or touch) to book or clear a whole range; weekends, non-working days and bank holidays are skipped.
 - **Your leave year.** Set your allowance, any carried-over days, and the date your leave year resets (for example 1 January or 1 April).
 - **UK bank holidays.** Bank holidays for England & Wales, Scotland or Northern Ireland are shown automatically. You can also count them against your allowance if your contract does.
+- **Company days.** Add office closures and extra days off (for example "24 December, every year"). Choose whether each one comes out of your allowance. They get their own colour and can't be booked.
 - **Part-time friendly.** Choose which days of the week you work. Leave can only be booked on working days.
 - **Export.** Download the whole leave year, with leave, bank holidays and a summary, as a high-resolution PNG.
 - **Private by default.** There's no backend and no account. Everything is stored in your browser's `localStorage`.

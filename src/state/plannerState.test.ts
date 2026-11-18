@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { DEFAULT_SETTINGS } from '../domain/types'
+import { DEFAULT_SETTINGS, type CompanyDay } from '../domain/types'
 import { STORAGE_KEY, initialState, persist, plannerReducer, type PlannerState } from './plannerState'
 
 class MemoryStorage implements Storage {
@@ -24,7 +24,15 @@ class MemoryStorage implements Storage {
   }
 }
 
-const base: PlannerState = { settings: DEFAULT_SETTINGS, leave: {}, yearOffset: 0 }
+const base: PlannerState = { settings: DEFAULT_SETTINGS, leave: {}, companyDays: [], yearOffset: 0 }
+
+const closure: CompanyDay = {
+  id: 'c1',
+  date: '2026-12-29',
+  name: 'Office closure',
+  deducted: true,
+  repeatsAnnually: false,
+}
 
 describe('plannerReducer', () => {
   it('cycles a day through full → half → none', () => {
@@ -80,10 +88,42 @@ describe('plannerReducer', () => {
       expect(s.leave).toEqual({ '2026-11-30': 'full' })
     })
 
+    it('skips company days', () => {
+      const s = plannerReducer(
+        { ...base, companyDays: [closure] },
+        { type: 'setLeaveRange', start: '2026-12-28', end: '2026-12-30', portion: 'full' },
+      )
+      // 28th is a bank holiday, 29th a company day.
+      expect(Object.keys(s.leave)).toEqual(['2026-12-30'])
+    })
+
     it('overwrites existing portions', () => {
       const start: PlannerState = { ...base, leave: { '2026-11-24': 'half' } }
       const s = plannerReducer(start, { type: 'setLeaveRange', start: '2026-11-23', end: '2026-11-24', portion: 'full' })
       expect(s.leave).toEqual({ '2026-11-23': 'full', '2026-11-24': 'full' })
+    })
+  })
+
+  describe('company days', () => {
+    it('adds company days, sorted by date', () => {
+      let s = plannerReducer(base, { type: 'addCompanyDay', day: closure })
+      s = plannerReducer(s, { type: 'addCompanyDay', day: { ...closure, id: 'c2', date: '2026-01-02', name: ' New ' } })
+      expect(s.companyDays.map((d) => [d.id, d.name])).toEqual([
+        ['c2', 'New'],
+        ['c1', 'Office closure'],
+      ])
+    })
+
+    it('ignores invalid or duplicate-id additions', () => {
+      const s = plannerReducer(base, { type: 'addCompanyDay', day: closure })
+      expect(plannerReducer(s, { type: 'addCompanyDay', day: { ...closure, name: '  ' } })).toBe(s)
+      expect(plannerReducer(s, { type: 'addCompanyDay', day: { ...closure, id: 'c1', name: 'Again' } })).toBe(s)
+      expect(plannerReducer(s, { type: 'addCompanyDay', day: { ...closure, id: 'c9', date: 'nope' } })).toBe(s)
+    })
+
+    it('removes by id', () => {
+      const s = plannerReducer({ ...base, companyDays: [closure] }, { type: 'removeCompanyDay', id: 'c1' })
+      expect(s.companyDays).toEqual([])
     })
   })
 
@@ -108,12 +148,13 @@ describe('persistence', () => {
   it('round-trips settings and leave, but not the year offset', () => {
     const storage = new MemoryStorage()
     persist(
-      { settings: { ...DEFAULT_SETTINGS, allowanceDays: 30 }, leave: { '2026-11-18': 'half' }, yearOffset: 2 },
+      { settings: { ...DEFAULT_SETTINGS, allowanceDays: 30 }, leave: { '2026-11-18': 'half' }, companyDays: [closure], yearOffset: 2 },
       storage,
     )
     const restored = initialState(storage)
     expect(restored.settings.allowanceDays).toBe(30)
     expect(restored.leave).toEqual({ '2026-11-18': 'half' })
+    expect(restored.companyDays).toEqual([closure])
     expect(restored.yearOffset).toBe(0)
   })
 
@@ -132,5 +173,49 @@ describe('persistence', () => {
       JSON.stringify({ version: 1, settings: {}, leave: { '2026-02-30': 'full', '2026-03-02': 'lots', '2026-03-03': 'half' } }),
     )
     expect(initialState(storage).leave).toEqual({ '2026-03-03': 'half' })
+  })
+
+  it('drops invalid company days on load', () => {
+    const storage = new MemoryStorage()
+    storage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({ version: 2, settings: {}, leave: {}, companyDays: [closure, { ...closure, id: 'x', date: 'bad' }, 7] }),
+    )
+    expect(initialState(storage).companyDays).toEqual([closure])
+    storage.setItem(STORAGE_KEY, JSON.stringify({ version: 2, settings: {}, leave: {}, companyDays: 'oops' }))
+    expect(initialState(storage).companyDays).toEqual([])
+  })
+
+  describe('v1 migration', () => {
+    const v1 = {
+      version: 1,
+      settings: { ...DEFAULT_SETTINGS, allowanceDays: 28, region: 'scotland', workingDays: [1, 2, 3] },
+      leave: { '2026-11-18': 'full', '2026-11-19': 'half' },
+    }
+
+    it('loads v1 data with an empty company days list, keeping settings and leave', () => {
+      const storage = new MemoryStorage()
+      storage.setItem(STORAGE_KEY, JSON.stringify(v1))
+      const restored = initialState(storage)
+      expect(restored.settings).toEqual(v1.settings)
+      expect(restored.leave).toEqual(v1.leave)
+      expect(restored.companyDays).toEqual([])
+    })
+
+    it('ignores a stray companyDays field on v1 data', () => {
+      const storage = new MemoryStorage()
+      storage.setItem(STORAGE_KEY, JSON.stringify({ ...v1, companyDays: [closure] }))
+      expect(initialState(storage).companyDays).toEqual([])
+    })
+
+    it('rewrites as v2 on the next persist', () => {
+      const storage = new MemoryStorage()
+      storage.setItem(STORAGE_KEY, JSON.stringify(v1))
+      persist(initialState(storage), storage)
+      const saved = JSON.parse(storage.getItem(STORAGE_KEY)!)
+      expect(saved.version).toBe(2)
+      expect(saved.companyDays).toEqual([])
+      expect(saved.leave).toEqual(v1.leave)
+    })
   })
 })

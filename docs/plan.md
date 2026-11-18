@@ -62,7 +62,7 @@ People with a fixed annual leave allowance want to see the whole leave year at a
 - [ ] Dark mode (the palette is already centralised in `theme.ts`)
 - [ ] Locale settings: first day of week, date format
 - [ ] Other countries' public holidays (for example via the Nager.Date API at build time)
-- [ ] Custom "company days" (office closures, extra holidays)
+- [x] Custom "company days" (office closures, extra holidays)
 - [ ] Accessibility audit (keyboard grid navigation with arrow keys, screen reader pass)
 - [ ] Visual regression tests for the PNG renderer (Playwright screenshot comparison)
 - [ ] Installable PWA with offline support

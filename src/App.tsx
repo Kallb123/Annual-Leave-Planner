@@ -44,7 +44,7 @@ export default function App() {
 
       <div className="layout">
         <aside>
-          <SettingsPanel settings={state.settings} dispatch={dispatch} />
+          <SettingsPanel settings={state.settings} companyDays={state.companyDays} dispatch={dispatch} />
         </aside>
 
         <main className="panel">

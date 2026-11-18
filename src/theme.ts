@@ -15,6 +15,7 @@ export const palette = {
 
   nonWorking: '#eef0f3',
   bankHoliday: '#f4b740',
+  companyDay: '#c3a6ec',
   leave: '#2f9e6a',
   leaveHalf: '#9fd8bb',
   today: '#2f6fed',
@@ -33,5 +34,6 @@ export const legendItems: { key: PaletteKey; label: string }[] = [
   { key: 'leave', label: 'Annual leave' },
   { key: 'leaveHalf', label: 'Half day' },
   { key: 'bankHoliday', label: 'Bank holiday' },
+  { key: 'companyDay', label: 'Company day' },
   { key: 'nonWorking', label: 'Non-working day' },
 ]

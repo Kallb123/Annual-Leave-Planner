@@ -157,6 +157,7 @@ function Day({ cell, selecting }: { cell: DayCell; selecting: boolean }) {
 
   const description = [
     cell.holidayName,
+    cell.companyDayName,
     cell.leave === 'full' && 'Annual leave',
     cell.leave === 'half' && 'Half day leave',
     cell.overLimit && 'over entitlement',

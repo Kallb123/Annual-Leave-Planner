@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useReducer } from 'react'
 import { overAllocatedDates, overEntitlementMessage, summarise } from '../domain/allowance'
 import { bankHolidayIndex, coversRange } from '../domain/bankHolidays'
+import { companyDayIndex } from '../domain/companyDays'
 import { buildYearView } from '../domain/calendar'
 import { parseIso, todayIso } from '../domain/dates'
 import { leaveYearContaining, leaveYearLabel, leaveYearStartingIn } from '../domain/leaveYear'
@@ -12,7 +13,7 @@ import { initialState, persist, plannerReducer } from './plannerState'
  */
 export function usePlanner() {
   const [state, dispatch] = useReducer(plannerReducer, undefined, () => initialState())
-  const { settings, leave, yearOffset } = state
+  const { settings, leave, companyDays: companyDayList, yearOffset } = state
 
   useEffect(() => {
     persist(state)
@@ -28,19 +29,21 @@ export function usePlanner() {
 
   const holidays = useMemo(() => bankHolidayIndex(settings.region), [settings.region])
 
+  const companyDays = useMemo(() => companyDayIndex(companyDayList), [companyDayList])
+
   const overLimit = useMemo(
-    () => overAllocatedDates(range, settings, leave, holidays),
-    [range, settings, leave, holidays],
+    () => overAllocatedDates(range, settings, leave, holidays, companyDays),
+    [range, settings, leave, holidays, companyDays],
   )
 
   const yearView = useMemo(
-    () => buildYearView(range, settings, leave, holidays, today, overLimit),
-    [range, settings, leave, holidays, today, overLimit],
+    () => buildYearView(range, settings, leave, holidays, companyDays, today, overLimit),
+    [range, settings, leave, holidays, companyDays, today, overLimit],
   )
 
   const summary = useMemo(
-    () => summarise(range, settings, leave, holidays),
-    [range, settings, leave, holidays],
+    () => summarise(range, settings, leave, holidays, companyDays),
+    [range, settings, leave, holidays, companyDays],
   )
 
   const label = leaveYearLabel(range)

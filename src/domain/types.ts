@@ -54,3 +54,21 @@ export interface DateRange {
   start: IsoDate
   end: IsoDate
 }
+
+/** Maximum length of a company day's name, after trimming. */
+export const COMPANY_DAY_NAME_MAX = 60
+
+/**
+ * A day the employer gives off or closes on (office closure, extra holiday,
+ * birthday leave). It replaces a working day, so leave can't be booked on it.
+ */
+export interface CompanyDay {
+  id: string
+  /** The date, or for a repeating day the month and day to repeat on. */
+  date: IsoDate
+  name: string
+  /** Comes out of the allowance (when it falls on one of the user's working days). */
+  deducted: boolean
+  /** Occurs on the same month and day in every year. */
+  repeatsAnnually: boolean
+}
