@@ -34,6 +34,17 @@ export function isBookable(
   return classifyDay(date, settings, holidays, companyDays) === 'working'
 }
 
+/** Whether a day can be marked: any day for someone with no allowance, otherwise only bookable days. */
+export function isMarkable(
+  date: IsoDate,
+  settings: WorkPattern,
+  holidays: BankHolidayIndex,
+  companyDays: CompanyDayIndex,
+  tracksAllowance: boolean,
+): boolean {
+  return tracksAllowance ? isBookable(date, settings, holidays, companyDays) : true
+}
+
 export function portionDays(portion: LeavePortion): number {
   return portion === 'half' ? 0.5 : 1
 }
@@ -60,7 +71,17 @@ export function summarise(
   leave: LeaveEntries,
   holidays: BankHolidayIndex,
   companyDays: CompanyDayIndex,
+  tracksAllowance = true,
 ): AllowanceSummary {
+  if (!tracksAllowance) {
+    // No allowance: just count the marked days in range.
+    let marked = 0
+    for (const date of eachDay(range.start, range.end)) {
+      const portion = leave[date]
+      if (portion) marked += portionDays(portion)
+    }
+    return { entitlement: 0, booked: marked, bankHolidaysDeducted: 0, companyDaysDeducted: 0, remaining: 0 }
+  }
   let booked = 0
   let bankHolidaysDeducted = 0
   let companyDaysDeducted = 0
@@ -109,7 +130,9 @@ export function overAllocatedDates(
   leave: LeaveEntries,
   holidays: BankHolidayIndex,
   companyDays: CompanyDayIndex,
+  tracksAllowance = true,
 ): Set<IsoDate> {
+  if (!tracksAllowance) return new Set()
   const { entitlement, bankHolidaysDeducted, companyDaysDeducted } = summarise(
     range,
     settings,

@@ -3,13 +3,14 @@ import { overAllocatedDates, overEntitlementMessage, summarise } from '../domain
 import { bankHolidayIndex, coversRange } from '../domain/bankHolidays'
 import { companyDayIndex, NO_COMPANY_DAYS, type CompanyDayIndex } from '../domain/companyDays'
 import { findBridges, type Bridge } from '../domain/bridges'
-import { buildYearView, type PersonLeaveSource } from '../domain/calendar'
+import { buildYearView, type PersonLeaveSource, type YearView } from '../domain/calendar'
 import { parseIso, todayIso, type IsoDate } from '../domain/dates'
 import { leaveYearContaining, leaveYearLabel, leaveYearStartingIn } from '../domain/leaveYear'
 import type { AllowanceSummary } from '../domain/allowance'
 import type { Company, Person } from '../domain/types'
 import {
   activePerson as selectActivePerson,
+  companyOf,
   initialState,
   persist,
   personSettings,
@@ -67,6 +68,12 @@ export function usePlanner() {
   /** What the calendar shows as company days: the company being edited, else the active person's. */
   const viewCompanyDays = editingCompany ? editingCompanyIndex : activeCompanyDays
 
+  /** The company whose days the calendar shows: the one being edited, else the active person's. */
+  const viewCompany = useMemo<YearView['company']>(() => {
+    const c = editingCompany ?? companyOf(companies, activePerson)
+    return c ? { name: c.name, colour: c.colour, style: c.style } : null
+  }, [editingCompany, companies, activePerson])
+
   const label = leaveYearLabel(range)
 
   const people = useMemo<PersonStatus[]>(
@@ -74,12 +81,12 @@ export function usePlanner() {
       peopleList.map((person) => {
         const effective = personSettings(shared, person)
         const companyDays = indexFor(person)
-        const summary = summarise(range, effective, person.leave, holidays, companyDays)
+        const summary = summarise(range, effective, person.leave, holidays, companyDays, person.tracksAllowance)
         return {
           person,
           active: person.id === activePerson.id,
           summary,
-          overLimit: overAllocatedDates(range, effective, person.leave, holidays, companyDays),
+          overLimit: overAllocatedDates(range, effective, person.leave, holidays, companyDays, person.tracksAllowance),
           warning: overEntitlementMessage(summary.remaining, label),
         }
       }),
@@ -93,22 +100,34 @@ export function usePlanner() {
       id: p.person.id,
       name: p.person.name,
       colour: p.person.colour,
+      style: p.person.style,
+      tracksAllowance: p.person.tracksAllowance,
       active: p.active,
       settings: personSettings(shared, p.person),
       leave: p.person.leave,
       overLimit: p.overLimit,
       companyDays: indexFor(p.person),
     }))
-    return buildYearView(range, settings, leave, holidays, viewCompanyDays, today, activeStatus.overLimit, sources)
-  }, [people, shared, range, settings, leave, holidays, viewCompanyDays, today, activeStatus, indexFor])
+    return buildYearView(
+      range,
+      settings,
+      leave,
+      holidays,
+      viewCompanyDays,
+      today,
+      activeStatus.overLimit,
+      sources,
+      viewCompany,
+    )
+  }, [people, shared, range, settings, leave, holidays, viewCompanyDays, today, activeStatus, indexFor, viewCompany])
 
   // Suggestions are computed from the active person's plan and never touch the PNG.
   const bridges = useMemo(
     () =>
-      settings.showBridgeSuggestions
+      settings.showBridgeSuggestions && activePerson.tracksAllowance
         ? findBridges({ range, today, settings, leave, holidays, companyDays: activeCompanyDays })
         : [],
-    [range, today, settings, leave, holidays, activeCompanyDays],
+    [range, today, settings, leave, holidays, activeCompanyDays, activePerson.tracksAllowance],
   )
 
   /** The best-ranked suggestion covering each day (bridges never overlap, but be explicit). */
@@ -129,6 +148,7 @@ export function usePlanner() {
     companies,
     editingCompany,
     editingCompanyIndex,
+    viewCompany,
     yearView,
     summary: activeStatus.summary,
     bridges,

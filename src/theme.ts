@@ -64,6 +64,35 @@ export const PERSON_COLOUR_NAMES: Record<string, string> = {
   '#4a5565': 'Slate',
 }
 
+/** Preset colours for a company's days. The first reproduces the original purple. */
+export const COMPANY_COLOURS = [
+  '#6f5bb8', // violet
+  '#2a8aa6', // lagoon
+  '#c4871a', // amber
+  '#4f8a3c', // fern
+  '#c2547a', // blossom
+  '#5f6b7a', // steel
+] as const
+
+/** Accessible names for the company presets (custom colours fall back to their hex value). */
+export const COMPANY_COLOUR_NAMES: Record<string, string> = {
+  '#6f5bb8': 'Violet',
+  '#2a8aa6': 'Lagoon',
+  '#c4871a': 'Amber',
+  '#4f8a3c': 'Fern',
+  '#c2547a': 'Blossom',
+  '#5f6b7a': 'Steel',
+}
+
+/** Colour given to a company when none is chosen. */
+export const DEFAULT_COMPANY_COLOUR: string = COMPANY_COLOURS[0]
+
+/** First company preset nobody is using yet, cycling through the list once all are taken. */
+export function nextCompanyColour(used: readonly string[]): string {
+  const taken = new Set(used.map((c) => c.toLowerCase()))
+  return COMPANY_COLOURS.find((c) => !taken.has(c)) ?? COMPANY_COLOURS[used.length % COMPANY_COLOURS.length]
+}
+
 /** First default colour nobody is using yet, cycling through the list once all are taken. */
 export function nextPersonColour(used: readonly string[]): string {
   const taken = new Set(used.map((c) => c.toLowerCase()))
@@ -86,6 +115,24 @@ export function halfDayTint(hex: string, amount = 0.45): string {
   const g = mix((n >> 8) & 0xff)
   const b = mix(n & 0xff)
   return `#${((r << 16) | (g << 8) | b).toString(16).padStart(6, '0')}`
+}
+
+/**
+ * A darker shade: the colour mixed with black.
+ * `amount` is how much of the original colour to keep (0–1).
+ */
+export function shade(hex: string, amount = 0.65): string {
+  const n = parseInt(hex.slice(1), 16)
+  const mix = (c: number) => Math.round(c * amount)
+  const r = mix((n >> 16) & 0xff)
+  const g = mix((n >> 8) & 0xff)
+  const b = mix(n & 0xff)
+  return `#${((r << 16) | (g << 8) | b).toString(16).padStart(6, '0')}`
+}
+
+/** Tones for a company's days derived from its colour: cell fill, text on that fill, and a stronger mark/outline tone. */
+export function companyDayColours(colour: string): { fill: string; text: string; mark: string } {
+  return { fill: halfDayTint(colour, 0.2), text: shade(colour, 0.65), mark: halfDayTint(colour, 0.5) }
 }
 
 /**

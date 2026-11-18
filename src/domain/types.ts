@@ -87,6 +87,14 @@ export const PERSON_NAME_MAX = 40
 /** Name given to the person created from single-person (v1/v2) saved data, or on first visit. */
 export const DEFAULT_PERSON_NAME = 'Me'
 
+/** How a person's or company's days are drawn: a filled cell, or an outline around runs of days. */
+export type DayStyle = 'fill' | 'outline'
+
+export const DAY_STYLES: { id: DayStyle; label: string }[] = [
+  { id: 'fill', label: 'Filled' },
+  { id: 'outline', label: 'Outline' },
+]
+
 /**
  * Someone whose leave is planned. Each person has their own allowance,
  * working pattern and bookings, and a colour used for their leave on the
@@ -97,6 +105,13 @@ export interface Person extends PersonSettings {
   name: string
   /** `#rrggbb`, lower case. */
   colour: string
+  /** Filled cells (default) or an outline around runs of consecutive days. */
+  style: DayStyle
+  /**
+   * True for someone who takes leave from an allowance. False for someone who just
+   * marks dates (e.g. school holidays): any day can be marked, with no allowance.
+   */
+  tracksAllowance: boolean
   leave: LeaveEntries
   /** Id of a company in the planner's `companies`, or null for none. */
   companyId: string | null
@@ -149,6 +164,10 @@ export const DEFAULT_COMPANY_DAY_NAME = 'Company day'
 export interface Company {
   id: string
   name: string
+  /** `#rrggbb`, lower case. Used for this company's days on the calendar. */
+  colour: string
+  /** How this company's days are drawn. */
+  style: DayStyle
   /** Sorted by date. */
   days: CompanyDay[]
 }

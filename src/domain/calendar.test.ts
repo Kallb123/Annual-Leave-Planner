@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildYearView, type PersonLeaveSource } from './calendar'
+import { buildYearView, type PersonLeaveSource, type YearView } from './calendar'
 import { companyDayIndex, NO_COMPANY_DAYS } from './companyDays'
 import { DEFAULT_SETTINGS } from './types'
 
@@ -76,6 +76,8 @@ describe('DayCell.people', () => {
   const source = (over: Partial<PersonLeaveSource> & Pick<PersonLeaveSource, 'id'>): PersonLeaveSource => ({
     name: over.id.toUpperCase(),
     colour: '#2f9e6a',
+    style: 'fill',
+    tracksAllowance: true,
     active: false,
     settings: DEFAULT_SETTINGS,
     leave: {},
@@ -110,8 +112,8 @@ describe('DayCell.people', () => {
       source({ id: 'c', leave: {} }),
     ]
     expect(cellFor(people, '2026-11-18').people).toEqual([
-      { personId: 'a', name: 'A', colour: '#2563eb', portion: 'full', overLimit: false, active: true },
-      { personId: 'b', name: 'B', colour: '#db2777', portion: 'half', overLimit: false, active: false },
+      { personId: 'a', name: 'A', colour: '#2563eb', style: 'fill', tracksAllowance: true, portion: 'full', joinsPrev: false, joinsNext: false, overLimit: false, active: true },
+      { personId: 'b', name: 'B', colour: '#db2777', style: 'fill', tracksAllowance: true, portion: 'half', joinsPrev: false, joinsNext: true, overLimit: false, active: false },
     ])
     expect(cellFor(people, '2026-11-19').people.map((p) => p.personId)).toEqual(['b'])
     expect(cellFor(people, '2026-11-20').people).toEqual([])
@@ -167,5 +169,97 @@ describe('DayCell.people', () => {
     const cell = view.months.flatMap((m) => m.weeks.flat()).find((c) => c?.date === '2026-11-18')!
     expect(cell.leave).toBe('half')
     expect(cell.people[0]).toMatchObject({ portion: 'half', active: true })
+  })
+})
+
+describe('styles, joins and company', () => {
+  const range = { start: '2026-01-01', end: '2026-12-31' }
+  const source = (over: Partial<PersonLeaveSource> & Pick<PersonLeaveSource, 'id'>): PersonLeaveSource => ({
+    name: over.id.toUpperCase(),
+    colour: '#2f9e6a',
+    style: 'fill',
+    tracksAllowance: true,
+    active: false,
+    settings: DEFAULT_SETTINGS,
+    leave: {},
+    overLimit: new Set(),
+    companyDays: NO_COMPANY_DAYS,
+    ...over,
+  })
+  const build = (people: PersonLeaveSource[], holidays = new Map<string, string>(), companyDays = NO_COMPANY_DAYS, company = null as YearView['company']) =>
+    buildYearView(range, DEFAULT_SETTINGS, {}, holidays, companyDays, null, new Set(), people, company)
+  const cell = (view: YearView, date: string) => view.months.flatMap((m) => m.weeks.flat()).find((c) => c?.date === date)!
+
+  it('marks bookable for the active person: working days only when tracking', () => {
+    const view = build([source({ id: 'a', active: true })], new Map([['2026-11-23', 'Holiday']]))
+    expect(cell(view, '2026-11-18').bookable).toBe(true)
+    expect(cell(view, '2026-11-21').bookable).toBe(false) // Saturday
+    expect(cell(view, '2026-11-23').bookable).toBe(false) // bank holiday
+  })
+
+  it('treats every in-range day as bookable for an active non-tracking person', () => {
+    const view = build([source({ id: 'a', active: true, tracksAllowance: false })], new Map([['2026-11-23', 'Holiday']]))
+    expect(cell(view, '2026-11-21').bookable).toBe(true)
+    expect(cell(view, '2026-11-22').bookable).toBe(true)
+    expect(cell(view, '2026-11-23').bookable).toBe(true)
+  })
+
+  it('is never bookable out of range, and falls back to working days with no active source', () => {
+    const view = buildYearView({ start: '2026-11-10', end: '2026-11-20' }, DEFAULT_SETTINGS, {}, new Map(), NO_COMPANY_DAYS, null, new Set(), [
+      source({ id: 'a', active: true, tracksAllowance: false }),
+    ])
+    expect(cell(view, '2026-11-09').bookable).toBe(false)
+    expect(cell(build([]), '2026-11-18').bookable).toBe(true)
+    expect(cell(build([]), '2026-11-21').bookable).toBe(false)
+  })
+
+  it('counts a non-tracking person\'s marks on weekends and bank holidays and joins them', () => {
+    const leave = { '2026-11-21': 'full', '2026-11-22': 'full', '2026-11-23': 'full' } as const
+    const view = build([source({ id: 's', tracksAllowance: false, style: 'outline', leave })], new Map([['2026-11-23', 'Holiday']]))
+    expect(cell(view, '2026-11-21').people[0]).toMatchObject({ style: 'outline', tracksAllowance: false, joinsPrev: false, joinsNext: true })
+    expect(cell(view, '2026-11-22').people[0]).toMatchObject({ joinsPrev: true, joinsNext: true })
+    expect(cell(view, '2026-11-23').people[0]).toMatchObject({ joinsPrev: true, joinsNext: false })
+  })
+
+  it('does not join across a day that does not count, or at a month edge', () => {
+    // 30 Nov and 1 Dec are adjacent dates but different months; 18th and 20th are separated by an unmarked 19th.
+    const leave = { '2026-11-18': 'full', '2026-11-20': 'full', '2026-11-30': 'full', '2026-12-01': 'full' } as const
+    const view = build([source({ id: 's', tracksAllowance: false, leave })])
+    expect(cell(view, '2026-11-18').people[0]).toMatchObject({ joinsPrev: false, joinsNext: false })
+    expect(cell(view, '2026-11-30').people[0]).toMatchObject({ joinsPrev: false, joinsNext: false })
+    expect(cell(view, '2026-12-01').people[0]).toMatchObject({ joinsPrev: false, joinsNext: false })
+  })
+
+  it('does not join onto a mark that is not markable for a tracking person', () => {
+    // Friday 20th and Saturday 21st: the Saturday does not count for a tracking person.
+    const leave = { '2026-11-20': 'full', '2026-11-21': 'full' } as const
+    const view = build([source({ id: 'a', leave })])
+    expect(cell(view, '2026-11-20').people[0].joinsNext).toBe(false)
+    expect(cell(view, '2026-11-21').people).toEqual([])
+  })
+
+  it('does not join onto a date outside the range', () => {
+    const leave = { '2026-11-19': 'full', '2026-11-20': 'full' } as const
+    const view = buildYearView({ start: '2026-11-20', end: '2026-11-30' }, DEFAULT_SETTINGS, {}, new Map(), NO_COMPANY_DAYS, null, new Set(), [
+      source({ id: 's', tracksAllowance: false, leave }),
+    ])
+    expect(cell(view, '2026-11-20').people[0].joinsPrev).toBe(false)
+    expect(cell(view, '2026-11-19').people).toEqual([])
+  })
+
+  it('flags adjacent company days within a month', () => {
+    const day = (id: string, date: string) => ({ id, date, name: id, deducted: false, repeatsAnnually: false })
+    const index = companyDayIndex([day('a', '2026-12-29'), day('b', '2026-12-30'), day('c', '2026-12-31'), day('d', '2027-01-01')])
+    const view = build([], new Map(), index)
+    expect(cell(view, '2026-12-29')).toMatchObject({ companyJoinsPrev: false, companyJoinsNext: true })
+    expect(cell(view, '2026-12-30')).toMatchObject({ companyJoinsPrev: true, companyJoinsNext: true })
+    expect(cell(view, '2026-12-31')).toMatchObject({ companyJoinsPrev: true, companyJoinsNext: false })
+    expect(cell(view, '2026-12-28')).toMatchObject({ companyJoinsPrev: false, companyJoinsNext: false })
+  })
+
+  it('passes the company through, defaulting to null', () => {
+    expect(build([]).company).toBeNull()
+    const company = { name: 'Acme', colour: '#2a8aa6', style: 'outline' as const }
+    expect(build([], new Map(), NO_COMPANY_DAYS, company).company).toEqual(company)
   })
 })
