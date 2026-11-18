@@ -219,3 +219,35 @@ describe('persistence', () => {
     })
   })
 })
+
+describe('showBridgeSuggestions setting', () => {
+  it('defaults to on and can be switched off through the reducer', () => {
+    expect(DEFAULT_SETTINGS.showBridgeSuggestions).toBe(true)
+    const s = plannerReducer(base, { type: 'updateSettings', patch: { showBridgeSuggestions: false } })
+    expect(s.settings.showBridgeSuggestions).toBe(false)
+  })
+
+  it('falls back to the previous value for a non-boolean', () => {
+    const off = { ...base, settings: { ...DEFAULT_SETTINGS, showBridgeSuggestions: false } }
+    const s = plannerReducer(off, {
+      type: 'updateSettings',
+      patch: { showBridgeSuggestions: 'yes' as unknown as boolean },
+    })
+    expect(s.settings.showBridgeSuggestions).toBe(false)
+  })
+
+  it('loads v2 data saved before the setting existed with the default, without a schema bump', () => {
+    const storage = new MemoryStorage()
+    const { showBridgeSuggestions: _omitted, ...oldSettings } = { ...DEFAULT_SETTINGS, allowanceDays: 30 }
+    storage.setItem(STORAGE_KEY, JSON.stringify({ version: 2, settings: oldSettings, leave: {}, companyDays: [] }))
+    const restored = initialState(storage)
+    expect(restored.settings.allowanceDays).toBe(30)
+    expect(restored.settings.showBridgeSuggestions).toBe(true)
+  })
+
+  it('persists and restores an explicit off', () => {
+    const storage = new MemoryStorage()
+    persist({ ...base, settings: { ...DEFAULT_SETTINGS, showBridgeSuggestions: false } }, storage)
+    expect(initialState(storage).settings.showBridgeSuggestions).toBe(false)
+  })
+})

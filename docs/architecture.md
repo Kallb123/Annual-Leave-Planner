@@ -53,6 +53,7 @@ No React, no DOM, no globals. Everything here is deterministic and unit tested.
 - **`bankHolidays.ts`**: loads the bundled GOV.UK snapshot, indexes it by date for the selected region, and reports whether a leave year is fully covered by the data.
 - **`companyDays.ts`**: the `CompanyDayIndex` lookup (exact-date and repeating days), input validation and sanitising of stored company days. A repeating day matches the same month and day in any year, so a repeating 29 February only occurs in leap years.
 - **`allowance.ts`**: classifies each day as `working`, `non-working`, `bank-holiday` or `company-day`, and computes the `AllowanceSummary` (entitlement, booked, bank holidays deducted, company days deducted, remaining). Precedence is bank holiday, then company day, then working pattern. Company days replace a working day, so they aren't bookable. They are shown on any day of the week but only deduct from the allowance when they fall on one of the user's working days and not on a bank holiday.
+- **`bridges.ts`**: `findBridges()` suggests "bridge" runs of 1–4 bookable days between days off. A day is off if `classifyDay` says it isn't a working day, or it is booked as full leave (half days don't count as off). A run needs off days directly on both sides, and at least one side's off-block must contain a bank holiday or company day, so ordinary weeks between weekends are never suggested. `totalDaysOff` walks the off-blocks outwards, past the leave year if needed. Runs must lie inside the leave year and not start before today (passed in). Sorted by days off per leave day, then total days off, then date.
 - **`calendar.ts`**: builds a `YearView`, a list of months, each a grid of Monday-first weeks of `DayCell`s. This is the **single model both renderers draw from**, so the screen and the PNG can't disagree.
 
 ### `src/state/` – application state
@@ -60,7 +61,7 @@ No React, no DOM, no globals. Everything here is deterministic and unit tested.
 - **Persisted state** is just `{ settings, leave, companyDays }`. Everything else is derived.
 - `leave` is a map of `IsoDate → 'full' | 'half'`, **independent of leave years**. Changing the reset date regroups existing bookings into new leave years rather than losing them.
 - Leave stored on a day that later becomes unbookable (for example after changing working days) stays stored but isn't counted or shown. Changing the setting back brings it back.
-- `localStorage` holds a versioned envelope (`{ version: 2, settings, leave, companyDays }`). Loading validates every field and falls back to defaults on anything unexpected. `migrateStored()` upgrades older versions (v1 had no company days and loads with an empty list); future schema changes add a case there.
+- `localStorage` holds a versioned envelope (`{ version: 2, settings, leave, companyDays }`). Loading validates every field and falls back to defaults on anything unexpected. `migrateStored()` upgrades older versions (v1 had no company days and loads with an empty list). Adding a field to `Settings` needs no version bump, because stored settings are merged over `DEFAULT_SETTINGS` and sanitised on load (for example `showBridgeSuggestions` defaults to on for older data); future schema changes add a case there.
 - `usePlanner()` is the only hook components need. It returns state, `dispatch` and the memoised derived data.
 
 ### `src/components/` – React UI
@@ -69,6 +70,7 @@ Presentational components that render props and dispatch actions. They contain n
 
 - `SettingsPanel`: allowance, carry-over, leave-year start, region, working days, bank-holiday deduction, and the `CompanyDaysSection` (list, remove and add company days).
 - `YearCalendar`: months and days. Each day is a `<button>`, disabled when the day isn't bookable, with an `aria-label` and holiday names in the `title`.
+- `BridgeSuggestions`: the top five suggestions with a Book button (dispatches `setLeaveRange` with `'full'`). `YearCalendar` takes an optional `bridgeByDate` map and adds a dotted `day--bridge` outline and a tooltip. Suggestions are screen-only: the PNG renderer ignores them, and the on-screen `Legend` adds its bridge entry separately from the shared `legendItems`. They are controlled by the `showBridgeSuggestions` setting.
 - `SummaryBar`, `Legend`.
 
 ### `src/export/` – PNG export

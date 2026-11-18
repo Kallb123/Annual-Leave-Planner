@@ -1,20 +1,27 @@
 import { useCallback, useState } from 'react'
+import { BridgeSuggestions } from './components/BridgeSuggestions'
 import { SettingsPanel } from './components/SettingsPanel'
 import { SummaryBar } from './components/SummaryBar'
 import { Legend, YearCalendar } from './components/YearCalendar'
+import type { Bridge } from './domain/bridges'
 import { REGIONS, type LeavePortion } from './domain/types'
 import { downloadCanvasAsPng } from './export/download'
 import { renderYearToCanvas } from './export/renderPng'
 import { usePlanner } from './state/usePlanner'
 
 export default function App() {
-  const { state, dispatch, range, label, yearView, summary, overEntitlementWarning, hasBankHolidayData } = usePlanner()
+  const { state, dispatch, range, label, yearView, summary, bridges, bridgeByDate, overEntitlementWarning, hasBankHolidayData } = usePlanner()
   const [exporting, setExporting] = useState(false)
 
   const toggleDay = useCallback((date: string) => dispatch({ type: 'cycleLeave', date }), [dispatch])
   const setRange = useCallback(
     (start: string, end: string, portion: LeavePortion | undefined) =>
       dispatch({ type: 'setLeaveRange', start, end, portion }),
+    [dispatch],
+  )
+
+  const bookBridge = useCallback(
+    (b: Bridge) => dispatch({ type: 'setLeaveRange', start: b.start, end: b.end, portion: 'full' }),
     [dispatch],
   )
 
@@ -89,8 +96,10 @@ export default function App() {
             </p>
           )}
 
-          <YearCalendar view={yearView} onToggleDay={toggleDay} onSetRange={setRange} />
-          <Legend />
+          <BridgeSuggestions bridges={bridges} onBook={bookBridge} />
+
+          <YearCalendar view={yearView} bridgeByDate={bridgeByDate} onToggleDay={toggleDay} onSetRange={setRange} />
+          <Legend showBridge={bridges.length > 0} />
         </main>
       </div>
     </div>

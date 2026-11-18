@@ -27,6 +27,8 @@ export interface Settings {
    * allowance (e.g. "28 days including bank holidays").
    */
   bankHolidaysDeducted: boolean
+  /** Show suggested "bridge" days (leave that joins bank holidays to weekends) on screen. */
+  showBridgeSuggestions: boolean
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -37,6 +39,7 @@ export const DEFAULT_SETTINGS: Settings = {
   region: 'england-and-wales',
   workingDays: [1, 2, 3, 4, 5],
   bankHolidaysDeducted: false,
+  showBridgeSuggestions: true,
 }
 
 export type LeavePortion = 'full' | 'half'

@@ -458,3 +458,57 @@ button.day:not(:disabled) {
   display: grid;
   gap: 8px;
 }
+
+/* --- Bridge suggestions (screen only; never drawn in the PNG) ------------- */
+
+/* Declared after the other outline rules in this file so a selection or an
+   over-limit mark still wins over the suggestion. */
+.day--bridge {
+  outline: 2px dotted var(--c-accent);
+  outline-offset: -2px;
+}
+
+.day--bridge.day--over-limit {
+  outline: 3px solid var(--c-warn);
+  outline-offset: -3px;
+}
+
+.day--bridge.day--selecting {
+  outline: 2px dashed var(--c-leave);
+}
+
+.swatch--bridge {
+  border: 2px dotted var(--c-accent);
+  box-sizing: border-box;
+}
+
+.bridges {
+  margin: 0 0 16px;
+}
+
+.bridges h3 {
+  margin: 0 0 8px;
+  font-size: 1rem;
+}
+
+.bridge-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.bridge-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 10px;
+  border: 1px dotted var(--c-accent);
+  border-radius: 8px;
+}
+
+.bridge-dates {
+  color: var(--c-textMuted);
+}

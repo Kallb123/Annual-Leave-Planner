@@ -90,6 +90,15 @@ export function SettingsPanel({ settings, companyDays, dispatch }: Props) {
         <span>Bank holidays come out of my allowance</span>
       </label>
 
+      <label className="checkbox">
+        <input
+          type="checkbox"
+          checked={settings.showBridgeSuggestions}
+          onChange={(e) => update({ showBridgeSuggestions: e.target.checked })}
+        />
+        <span>Suggest bridge days (short leave around bank holidays)</span>
+      </label>
+
       <fieldset className="field">
         <legend>Working days</legend>
         <div className="weekday-toggles">

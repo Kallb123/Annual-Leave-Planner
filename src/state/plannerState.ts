@@ -194,6 +194,8 @@ export function sanitiseSettings(s: Settings, d: Settings = DEFAULT_SETTINGS): S
     region: REGIONS.some((r) => r.id === s.region) ? s.region : d.region,
     workingDays,
     bankHolidaysDeducted: typeof s.bankHolidaysDeducted === 'boolean' ? s.bankHolidaysDeducted : d.bankHolidaysDeducted,
+    showBridgeSuggestions:
+      typeof s.showBridgeSuggestions === 'boolean' ? s.showBridgeSuggestions : d.showBridgeSuggestions,
   }
 }
 

@@ -3,10 +3,13 @@ import { WEEKDAY_INITIALS_MON_FIRST, eachDay } from '../domain/dates'
 import type { LeavePortion } from '../domain/types'
 import { nextPortion } from '../state/plannerState'
 import type { DayCell, MonthView, YearView } from '../domain/calendar'
+import { bridgeSummary, type Bridge } from '../domain/bridges'
 import { legendItems } from '../theme'
 
 interface Props {
   view: YearView
+  /** Suggested bridge days (screen only; the PNG never draws these). */
+  bridgeByDate?: ReadonlyMap<string, Bridge>
   onToggleDay: (date: string) => void
   onSetRange: (start: string, end: string, portion: LeavePortion | undefined) => void
 }
@@ -14,7 +17,7 @@ interface Props {
 const dateAt = (x: number, y: number): string | null =>
   document.elementFromPoint(x, y)?.closest<HTMLElement>('[data-date]')?.dataset.date ?? null
 
-export function YearCalendar({ view, onToggleDay, onSetRange }: Props) {
+export function YearCalendar({ view, bridgeByDate, onToggleDay, onSetRange }: Props) {
   const cells = useMemo(() => {
     const map = new Map<string, DayCell>()
     for (const m of view.months) for (const w of m.weeks) for (const c of w) if (c) map.set(c.date, c)
@@ -107,13 +110,21 @@ export function YearCalendar({ view, onToggleDay, onSetRange }: Props) {
   return (
     <div className="year" onPointerDown={onPointerDown} onClick={onDayClick}>
       {view.months.map((m) => (
-        <Month key={`${m.year}-${m.month}`} month={m} selecting={selecting} />
+        <Month key={`${m.year}-${m.month}`} month={m} selecting={selecting} bridgeByDate={bridgeByDate} />
       ))}
     </div>
   )
 }
 
-function Month({ month, selecting }: { month: MonthView; selecting: Set<string> | null }) {
+function Month({
+  month,
+  selecting,
+  bridgeByDate,
+}: {
+  month: MonthView
+  selecting: Set<string> | null
+  bridgeByDate?: ReadonlyMap<string, Bridge>
+}) {
   return (
     <section className="month" aria-label={month.label}>
       <h3>{month.label}</h3>
@@ -129,7 +140,7 @@ function Month({ month, selecting }: { month: MonthView; selecting: Set<string> 
           <div role="row" key={w} className="week">
             {week.map((cell, d) =>
               cell ? (
-                <Day key={cell.date} cell={cell} selecting={!!selecting?.has(cell.date)} />
+                <Day key={cell.date} cell={cell} selecting={!!selecting?.has(cell.date)} bridge={bridgeByDate?.get(cell.date)} />
               ) : (
                 <span key={d} role="gridcell" className="day day--empty" />
               ),
@@ -141,7 +152,7 @@ function Month({ month, selecting }: { month: MonthView; selecting: Set<string> 
   )
 }
 
-function Day({ cell, selecting }: { cell: DayCell; selecting: boolean }) {
+function Day({ cell, selecting, bridge }: { cell: DayCell; selecting: boolean; bridge?: Bridge }) {
   const bookable = cell.inRange && cell.kind === 'working'
   const classes = [
     'day',
@@ -151,6 +162,7 @@ function Day({ cell, selecting }: { cell: DayCell; selecting: boolean }) {
     cell.isToday && 'day--today',
     cell.overLimit && 'day--over-limit',
     selecting && 'day--selecting',
+    bridge && 'day--bridge',
   ]
     .filter(Boolean)
     .join(' ')
@@ -161,6 +173,7 @@ function Day({ cell, selecting }: { cell: DayCell; selecting: boolean }) {
     cell.leave === 'full' && 'Annual leave',
     cell.leave === 'half' && 'Half day leave',
     cell.overLimit && 'over entitlement',
+    bridge && `Suggested: ${bridgeSummary(bridge).charAt(0).toLowerCase()}${bridgeSummary(bridge).slice(1)}`,
   ]
     .filter(Boolean)
     .join(', ')
@@ -181,7 +194,7 @@ function Day({ cell, selecting }: { cell: DayCell; selecting: boolean }) {
   )
 }
 
-export function Legend() {
+export function Legend({ showBridge = false }: { showBridge?: boolean }) {
   return (
     <ul className="legend">
       {legendItems.map((item) => (
@@ -190,6 +203,13 @@ export function Legend() {
           {item.label}
         </li>
       ))}
+      {/* On screen only: the PNG legend is built from `legendItems` directly and omits this. */}
+      {showBridge && (
+        <li>
+          <span className="swatch swatch--bridge" />
+          Suggested bridge
+        </li>
+      )}
     </ul>
   )
 }
