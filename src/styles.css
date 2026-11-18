@@ -51,6 +51,13 @@ h3 {
   color: var(--c-textMuted);
 }
 
+.app-footer {
+  margin-top: 24px;
+  text-align: center;
+  font-size: 0.8rem;
+  color: var(--c-textMuted);
+}
+
 .layout {
   display: grid;
   grid-template-columns: 300px minmax(0, 1fr);

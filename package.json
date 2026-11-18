@@ -13,7 +13,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "update-bank-holidays": "node scripts/update-bank-holidays.mjs",
-    "generate-icons": "node scripts/generate-icons.mjs"
+    "generate-icons": "node scripts/generate-icons.mjs",
+    "bump": "npm version --no-git-tag-version"
   },
   "dependencies": {
     "react": "^19.3.1",

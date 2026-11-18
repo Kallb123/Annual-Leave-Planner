@@ -37,6 +37,7 @@ Then open http://localhost:5173.
 | `npm run typecheck` | Type-check only |
 | `npm run update-bank-holidays` | Refresh `src/data/bank-holidays.json` from GOV.UK |
 | `npm run generate-icons` | Re-render the PNG app icons from `scripts/icons/*.svg` (needs Playwright) |
+| `npm run bump <major\|minor\|patch>` | Bump the version in `package.json` and `package-lock.json` (shown in the app footer). Doesn't commit or tag |
 
 ## Deploying
 
