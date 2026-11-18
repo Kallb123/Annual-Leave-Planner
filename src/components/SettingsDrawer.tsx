@@ -2,7 +2,9 @@ import { useEffect, useId, useRef, useState, type FormEvent, type KeyboardEvent,
 import { CompaniesSection } from './CompaniesSection'
 import { DayCountInput } from './DayCountInput'
 import { newId } from './newId'
-import { MONTH_NAMES, daysInMonth } from '../domain/dates'
+import { formatBridgeDates } from '../domain/bridges'
+import { MONTH_NAMES, daysInMonth, todayIso } from '../domain/dates'
+import { fortnightStartFor, fortnightWeek, mondayOf } from '../domain/workPattern'
 import {
   PERSON_NAME_MAX,
   REGIONS,
@@ -293,30 +295,7 @@ function PeopleTab({ settings, activePerson, people, companies, range, label, di
           Entitlement for {label}: <strong>{fmt(entitlement)} days</strong>
         </p>
 
-        <fieldset className="field">
-          <legend>Working days</legend>
-          <div className="weekday-grid">
-            {WEEKDAYS.map(({ dow, label: dayLabel }) => {
-              const on = settings.workingDays.includes(dow)
-              return (
-                <button
-                  key={dow}
-                  type="button"
-                  className="weekday-toggle"
-                  aria-pressed={on}
-                  onClick={() =>
-                    update({
-                      workingDays: on ? settings.workingDays.filter((d) => d !== dow) : [...settings.workingDays, dow],
-                    })
-                  }
-                >
-                  {dayLabel}
-                </button>
-              )
-            })}
-          </div>
-          <span className="hint">Leave can only be booked on working days.</span>
-        </fieldset>
+        <WorkingPattern settings={settings} update={update} />
 
         <SwitchRow
           label="Bank holidays come out of the allowance"
@@ -591,5 +570,90 @@ function PlanTab({ settings, people, companies, dispatch, onExportJson, onImport
         )}
       </section>
     </>
+  )
+}
+
+function WeekdayGrid({ days, label, onChange }: { days: number[]; label?: string; onChange: (days: number[]) => void }) {
+  return (
+    <div className="weekday-grid" role={label ? 'group' : undefined} aria-label={label}>
+      {WEEKDAYS.map(({ dow, label: dayLabel }) => {
+        const on = days.includes(dow)
+        return (
+          <button
+            key={dow}
+            type="button"
+            className="weekday-toggle"
+            aria-pressed={on}
+            onClick={() => onChange(on ? days.filter((d) => d !== dow) : [...days, dow])}
+          >
+            {dayLabel}
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
+function WorkingPattern({ settings, update }: { settings: Settings; update: (patch: Partial<Settings>) => void }) {
+  const id = useId()
+  const today = todayIso()
+  const week2 = settings.workingDaysWeek2
+  const fortnightly = week2 !== null
+  const thisWeek = fortnightWeek(today, settings.fortnightStart)
+  const mondayLabel = formatBridgeDates(mondayOf(today), mondayOf(today))
+  return (
+    <fieldset className="field">
+      <legend id={`${id}-pattern`}>Working days</legend>
+      <div className="segmented" role="radiogroup" aria-labelledby={`${id}-pattern`}>
+        <button
+          type="button"
+          role="radio"
+          aria-checked={!fortnightly}
+          onClick={() => !fortnightly || update({ workingDaysWeek2: null })}
+        >
+          Same every week
+        </button>
+        <button
+          type="button"
+          role="radio"
+          aria-checked={fortnightly}
+          onClick={() =>
+            fortnightly ||
+            update({ workingDaysWeek2: [...settings.workingDays], fortnightStart: fortnightStartFor(today, 1) })
+          }
+        >
+          Fortnightly
+        </button>
+      </div>
+      {week2 === null ? (
+        <WeekdayGrid days={settings.workingDays} onChange={(workingDays) => update({ workingDays })} />
+      ) : (
+        <>
+          <span className="pattern-week-label">Week 1</span>
+          <WeekdayGrid label="Week 1" days={settings.workingDays} onChange={(workingDays) => update({ workingDays })} />
+          <span className="pattern-week-label">Week 2</span>
+          <WeekdayGrid label="Week 2" days={week2} onChange={(workingDaysWeek2) => update({ workingDaysWeek2 })} />
+          <span className="pattern-week-label" id={`${id}-now`}>
+            This week (w/c {mondayLabel}) is
+          </span>
+          <div className="segmented" role="radiogroup" aria-labelledby={`${id}-now`}>
+            {([1, 2] as const).map((n) => (
+              <button
+                key={n}
+                type="button"
+                role="radio"
+                aria-checked={thisWeek === n}
+                onClick={() => update({ fortnightStart: fortnightStartFor(today, n) })}
+              >
+                Week {n}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+      <span className="hint">
+        {fortnightly ? 'For a 9-day fortnight, untick the day off in one week. ' : ''}Leave can only be booked on working days.
+      </span>
+    </fieldset>
   )
 }

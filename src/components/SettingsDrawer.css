@@ -309,6 +309,14 @@
   color: #fff;
 }
 
+.pattern-week-label {
+  display: block;
+  margin-top: 4px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--c-ink);
+}
+
 /* Switch rows */
 .switch-row {
   display: flex;

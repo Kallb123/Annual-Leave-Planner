@@ -68,6 +68,7 @@ People with a fixed annual leave allowance want to see the whole leave year at a
 - [ ] Accessibility audit (keyboard grid navigation with arrow keys, screen reader pass)
 - [ ] Visual regression tests for the PNG renderer (Playwright screenshot comparison)
 - [x] Installable PWA with offline support
+- [x] Fortnightly working patterns (for example a 9-day fortnight), per person, with a choice of which week is week 1
 - [x] Several people in one plan, each with their own allowance, working days and colour
 
 ## Open questions

@@ -2,6 +2,7 @@ import { isBookable } from '../domain/allowance'
 import { bankHolidayIndex } from '../domain/bankHolidays'
 import { companyDayIndex, NO_COMPANY_DAYS, sanitiseCompanyDays, type CompanyDayIndex } from '../domain/companyDays'
 import { eachDay, isIsoDate } from '../domain/dates'
+import { mondayOf } from '../domain/workPattern'
 import {
   COMPANY_DAY_NAME_MAX,
   COMPANY_NAME_MAX,
@@ -81,13 +82,14 @@ export type PlannerAction =
 
 /** The effective settings for one person: shared settings plus their own. */
 export function personSettings(shared: SharedSettings, person: Person): Settings {
-  return {
-    ...shared,
-    allowanceDays: person.allowanceDays,
-    carryOverDays: person.carryOverDays,
-    workingDays: person.workingDays,
-    bankHolidaysDeducted: person.bankHolidaysDeducted,
-  }
+  return { ...shared, ...pickPersonSettings(person) }
+}
+
+/** The person's own settings, derived from `PERSON_SETTING_KEYS` so it can't drift. */
+function pickPersonSettings(person: PersonSettings): PersonSettings {
+  const out: Record<string, unknown> = {}
+  for (const k of PERSON_SETTING_KEYS) out[k] = person[k]
+  return out as unknown as PersonSettings
 }
 
 /** Maximum number of companies in one planner. */
@@ -295,7 +297,7 @@ export function plannerReducer(state: PlannerState, action: PlannerAction): Plan
 // ---------------------------------------------------------------------------
 
 export const STORAGE_KEY = 'annual-leave-planner'
-const SCHEMA_VERSION = 4
+const SCHEMA_VERSION = 5
 
 /** Id given to the person created from v1/v2 data or on first visit. */
 const DEFAULT_PERSON_ID = 'person-1'
@@ -311,16 +313,18 @@ const DEFAULT_COMPANY_ID = 'company-1'
  *   and `leave` moves onto each person: `{ version, shared, people, activePersonId, companyDays }`
  * - v4: company days move into `companies`, each person has a `companyId`:
  *   `{ version, shared, people, activePersonId, companies }`
+ * - v5: per-person fortnightly working pattern: `workingDaysWeek2`, `fortnightStart`
+ *   (same envelope as v4; missing fields default on load)
  */
-interface StoredStateV4 {
-  version: 4
+interface StoredStateV5 {
+  version: 5
   shared: SharedSettings
   people: Person[]
   activePersonId: string
   companies: Company[]
 }
 
-export type StoredContent = Omit<StoredStateV4, 'version'>
+export type StoredContent = Omit<StoredStateV5, 'version'>
 
 function defaultPerson(): Person {
   return {
@@ -356,7 +360,7 @@ export function hasSavedState(storage: Storage | undefined = safeLocalStorage())
 
 /** The versioned JSON envelope that is both stored and exported: exactly what `parsePlan` reads back. */
 export function serialisePlan(state: PlannerState): string {
-  const payload: StoredStateV4 = {
+  const payload: StoredStateV5 = {
     version: SCHEMA_VERSION,
     shared: state.shared,
     people: state.people,
@@ -442,7 +446,7 @@ export function migrateStored(parsed: unknown): StoredContent | null {
       companies: [legacyCompany(p.version === 1 ? [] : p.companyDays)],
     }
   }
-  if (p.version !== 3 && p.version !== 4) return null
+  if (p.version !== 3 && p.version !== 4 && p.version !== 5) return null
   const shared = splitSettings(
     sanitiseSettings({ ...DEFAULT_SETTINGS, ...(asObject(p.shared) as Partial<Settings>) }),
   ).shared
@@ -545,6 +549,13 @@ export function sanitiseSettings(s: Settings, d: Settings = DEFAULT_SETTINGS): S
   const workingDays = Array.isArray(s.workingDays)
     ? [...new Set(s.workingDays.filter((n) => Number.isInteger(n) && n >= 0 && n <= 6))].sort((a, b) => a - b)
     : d.workingDays
+  const workingDaysWeek2 = Array.isArray(s.workingDaysWeek2)
+    ? [...new Set(s.workingDaysWeek2.filter((n) => Number.isInteger(n) && n >= 0 && n <= 6))].sort((a, b) => a - b)
+    : s.workingDaysWeek2 === null
+      ? null
+      : d.workingDaysWeek2
+  const fortnightStart =
+    typeof s.fortnightStart === 'string' && isIsoDate(s.fortnightStart) ? mondayOf(s.fortnightStart) : d.fortnightStart
   return {
     allowanceDays: clamp(toHalf(num(s.allowanceDays, d.allowanceDays)), 0, 366),
     carryOverDays: clamp(toHalf(num(s.carryOverDays, d.carryOverDays)), 0, 366),
@@ -552,6 +563,8 @@ export function sanitiseSettings(s: Settings, d: Settings = DEFAULT_SETTINGS): S
     leaveYearStartDay: clamp(Math.round(num(s.leaveYearStartDay, d.leaveYearStartDay)), 1, 31),
     region: REGIONS.some((r) => r.id === s.region) ? s.region : d.region,
     workingDays,
+    workingDaysWeek2,
+    fortnightStart,
     bankHolidaysDeducted: typeof s.bankHolidaysDeducted === 'boolean' ? s.bankHolidaysDeducted : d.bankHolidaysDeducted,
     showBridgeSuggestions:
       typeof s.showBridgeSuggestions === 'boolean' ? s.showBridgeSuggestions : d.showBridgeSuggestions,

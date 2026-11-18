@@ -18,8 +18,48 @@ describe('classifyDay', () => {
   })
 
   it('respects custom working patterns', () => {
-    const fourDay = { workingDays: [1, 2, 3, 4] }
+    const fourDay = { ...DEFAULT_SETTINGS, workingDays: [1, 2, 3, 4] }
     expect(classifyDay('2026-11-20', fourDay, holidays, NO_COMPANY_DAYS)).toBe('non-working') // Friday
+  })
+})
+
+describe('fortnightly pattern (9-day fortnight)', () => {
+  // Week 1 Mon-Fri, week 2 Mon-Thu.
+  const nineDay = (fortnightStart: string): Settings => ({
+    ...DEFAULT_SETTINGS,
+    workingDaysWeek2: [1, 2, 3, 4],
+    fortnightStart,
+    bankHolidaysDeducted: true,
+  })
+
+  it('classifies a Friday by which week it falls in', () => {
+    const s = nineDay('2026-11-16')
+    expect(classifyDay('2026-11-20', s, holidays, NO_COMPANY_DAYS)).toBe('working') // week 1
+    expect(classifyDay('2026-11-27', s, holidays, NO_COMPANY_DAYS)).toBe('non-working') // week 2
+    expect(classifyDay('2026-11-26', s, holidays, NO_COMPANY_DAYS)).toBe('working')
+    expect(classifyDay('2026-12-04', s, holidays, NO_COMPANY_DAYS)).toBe('working') // week 1 again
+  })
+
+  it('only deducts a bank holiday when it falls on a worked day', () => {
+    // Fri 25 Dec is a week 2 Friday here (not worked); Mon 28 Dec is week 1 (worked).
+    expect(summarise(range, nineDay('2026-12-14'), {}, holidays, NO_COMPANY_DAYS).bankHolidaysDeducted).toBe(1)
+    // Shift the fortnight: Fri 25 Dec is a week 1 Friday (worked); Mon 28 Dec is week 2 Monday (worked).
+    expect(summarise(range, nineDay('2026-12-21'), {}, holidays, NO_COMPANY_DAYS).bankHolidaysDeducted).toBe(2)
+  })
+
+  it('cannot book leave on the non-working Friday and ignores it in the summary', () => {
+    const s = nineDay('2026-11-16')
+    const leave = { '2026-11-20': 'full', '2026-11-27': 'full' } as const
+    expect(summarise({ start: '2026-11-01', end: '2026-11-30' }, s, leave, holidays, NO_COMPANY_DAYS).booked).toBe(1)
+  })
+
+  it('counts a deducted company day only on a worked day', () => {
+    const s = nineDay('2026-11-16')
+    const days = companyDayIndex([
+      { id: 'a', date: '2026-11-20', name: 'Closure', deducted: true, repeatsAnnually: false }, // week 1 Friday
+      { id: 'b', date: '2026-11-27', name: 'Closure', deducted: true, repeatsAnnually: false }, // week 2 Friday
+    ])
+    expect(summarise({ start: '2026-11-01', end: '2026-11-30' }, s, {}, holidays, days).companyDaysDeducted).toBe(1)
   })
 })
 
@@ -155,7 +195,7 @@ describe('company days', () => {
     })
 
     it('respects part-time patterns for the underlying day, not the display', () => {
-      const fourDay = { workingDays: [1, 2, 3, 4] }
+      const fourDay = { ...DEFAULT_SETTINGS, workingDays: [1, 2, 3, 4] }
       const cd = index(day('2026-11-20')) // Friday, not a working day
       expect(classifyDay('2026-11-20', fourDay, holidays, cd)).toBe('company-day')
     })

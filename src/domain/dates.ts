@@ -52,6 +52,11 @@ export function addDays(date: IsoDate, days: number): IsoDate {
   return fromUtcMs(toUtcMs(date) + days * 86_400_000)
 }
 
+/** Whole days from `a` to `b` (negative when `b` is earlier). */
+export function daysBetween(a: IsoDate, b: IsoDate): number {
+  return Math.round((toUtcMs(b) - toUtcMs(a)) / 86_400_000)
+}
+
 /** 0 = Sunday … 6 = Saturday (matches `Date#getDay`). */
 export function dayOfWeek(date: IsoDate): number {
   return new Date(toUtcMs(date)).getUTCDay()

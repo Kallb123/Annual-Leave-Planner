@@ -3,6 +3,7 @@ import { classifyDay, isBookable, type DayKind } from './allowance'
 import type { BankHolidayIndex } from './bankHolidays'
 import type { CompanyDayIndex } from './companyDays'
 import type { CompanyDay, DateRange, LeaveEntries, LeavePortion, Settings } from './types'
+import type { WorkPattern } from './workPattern'
 
 /**
  * Renderer-agnostic description of a leave year. Both the on-screen calendar
@@ -70,7 +71,7 @@ export interface DayCell {
 
 export function buildYearView(
   range: DateRange,
-  settings: Pick<Settings, 'workingDays'>,
+  settings: WorkPattern,
   leave: LeaveEntries,
   holidays: BankHolidayIndex,
   companyDays: CompanyDayIndex,
@@ -98,7 +99,7 @@ function buildMonth(
   year: number,
   month: number,
   range: DateRange,
-  settings: Pick<Settings, 'workingDays'>,
+  settings: WorkPattern,
   leave: LeaveEntries,
   holidays: BankHolidayIndex,
   companyDays: CompanyDayIndex,

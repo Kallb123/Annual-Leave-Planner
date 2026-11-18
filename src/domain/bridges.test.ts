@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { bankHolidayIndex } from './bankHolidays'
 import { bridgeSummary, findBridges, formatBridgeDates, type FindBridgesInput } from './bridges'
 import { companyDayIndex, NO_COMPANY_DAYS } from './companyDays'
-import type { CompanyDay } from './types'
+import { DEFAULT_SETTINGS, type CompanyDay } from './types'
 
 const holidays = bankHolidayIndex('england-and-wales')
 const range = { start: '2026-01-01', end: '2026-12-31' }
@@ -12,7 +12,7 @@ function run(over: Partial<FindBridgesInput> = {}) {
   return findBridges({
     range,
     today: '2026-01-01',
-    settings: { workingDays: monFri },
+    settings: { ...DEFAULT_SETTINGS, workingDays: monFri },
     leave: {},
     holidays,
     companyDays: NO_COMPANY_DAYS,
@@ -29,6 +29,19 @@ const company = (date: string, repeatsAnnually = false): CompanyDay => ({
 })
 
 describe('findBridges', () => {
+  it('treats a non-working week 2 Friday beside a bank holiday Monday as part of the off block', () => {
+    // Early May bank holiday is Mon 4 May 2026. Fri 1 May is in week 2 (Mon-Thu), so it is off.
+    const settings = { ...DEFAULT_SETTINGS, workingDaysWeek2: [1, 2, 3, 4], fortnightStart: '2026-05-04' }
+    const b = run({ settings }).find((x) => x.start === '2026-05-05')!
+    expect(b.dates).toEqual(['2026-05-05', '2026-05-06', '2026-05-07', '2026-05-08'])
+    expect(b.offStart).toBe('2026-05-01')
+    // Fri 1 - Mon 4 May, plus Sat 9 - Sun 10 May around the 4 bridging days.
+    expect(b.totalDaysOff).toBe(10)
+    // The same week 1 Friday is a working day, so the block would start on the Saturday.
+    const weekly = run().find((x) => x.start === '2026-05-05')
+    expect(weekly?.offStart ?? '2026-05-02').toBe('2026-05-02')
+  })
+
   it('finds Christmas to New Year for Mon-Fri, counting beyond the leave year end', () => {
     // Fri 25 and Mon 28 Dec are holidays; Tue 29 - Thu 31 Dec is the bridge; Fri 1 Jan 2027 is a holiday.
     const b = run().find((x) => x.start === '2026-12-29')!
@@ -59,7 +72,7 @@ describe('findBridges', () => {
   })
 
   it('works for a Mon-Wed pattern around Easter and ignores plain weeks', () => {
-    const bridges = run({ settings: { workingDays: [1, 2, 3] } })
+    const bridges = run({ settings: { ...DEFAULT_SETTINGS, workingDays: [1, 2, 3] } })
     const easter = bridges.find((b) => b.start === '2026-04-07')!
     expect(easter.dates).toEqual(['2026-04-07', '2026-04-08'])
     expect(easter.offStart).toBe('2026-04-02') // Thu before Good Friday is non-working
@@ -70,7 +83,7 @@ describe('findBridges', () => {
   })
 
   it('works for a Tue-Thu pattern', () => {
-    const bridges = run({ settings: { workingDays: [2, 3, 4] } })
+    const bridges = run({ settings: { ...DEFAULT_SETTINGS, workingDays: [2, 3, 4] } })
     // Mon 28 Dec holiday; Tue-Thu 29-31 Dec is the run; Fri 1 Jan holiday.
     const b = bridges.find((x) => x.start === '2026-12-29')!
     expect(b.leaveDays).toBe(3)
@@ -148,13 +161,13 @@ describe('findBridges', () => {
   })
 
   it('suggests nothing when there are no working days', () => {
-    expect(run({ settings: { workingDays: [] } })).toEqual([])
+    expect(run({ settings: { ...DEFAULT_SETTINGS, workingDays: [] } })).toEqual([])
   })
 
   it('terminates for a seven-day week with no days off anywhere', () => {
     const noHolidays = { has: () => false, get: () => undefined } as unknown as typeof holidays
     expect(
-      run({ settings: { workingDays: [0, 1, 2, 3, 4, 5, 6] }, holidays: noHolidays }),
+      run({ settings: { ...DEFAULT_SETTINGS, workingDays: [0, 1, 2, 3, 4, 5, 6] }, holidays: noHolidays }),
     ).toEqual([])
   })
 })

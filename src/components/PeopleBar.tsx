@@ -6,7 +6,7 @@ import type { PersonStatus } from '../state/usePlanner'
 import { PlusIcon } from './Icons'
 import { InlineAddForm } from './InlineAddForm'
 import { newId } from './newId'
-import { share, workingDaysLabel } from './format'
+import { share, workPatternLabel } from './format'
 
 const fmt = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(1))
 
@@ -93,7 +93,7 @@ export function PeopleBar({ people, companies, editing = false, variant = 'cards
                   <span className="person-card-who">
                     <span className="person-card-name">{person.name}</span>
                     <span className="person-card-meta">
-                      {workingDaysLabel(person.workingDays)}
+                      {workPatternLabel(person)}
                       {company ? ` · ${company.name}` : ''}
                     </span>
                   </span>
