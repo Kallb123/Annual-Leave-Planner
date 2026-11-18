@@ -1,4 +1,4 @@
-# Cloudflare Pages. Copied to dist/ by Vite. See docs/deployment.md.
+# Cloudflare (Workers static assets or Pages). Copied to dist/ by Vite. See docs/deployment.md.
 
 # Always revalidate the entry points so new deploys are noticed.
 /

@@ -145,6 +145,8 @@ export default function App() {
           <Legend people={people.map((p) => ({ id: p.person.id, name: p.person.name, colour: p.person.colour }))} activeColour={activePerson.colour} showBridge={!companyMode && bridges.length > 0} />
         </main>
       </div>
+
+      <footer className="app-footer">Version {__APP_VERSION__}</footer>
     </div>
   )
 }

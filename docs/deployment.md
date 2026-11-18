@@ -1,6 +1,6 @@
 # Deployment
 
-The app is a static single-page app. `npm run build` writes everything to `dist/`. There are no server functions, environment variables or routes. The only host configuration is cache headers (see [Caching and updates](#caching-and-updates)), already included in the repo as `public/_headers` (Cloudflare Pages) and `vercel.json` (Vercel).
+The app is a static single-page app. `npm run build` writes everything to `dist/`. There are no server functions, environment variables or routes. The host configuration is already in the repo: `wrangler.jsonc` (Cloudflare Workers), cache headers in `public/_headers` (Cloudflare) and `vercel.json` (Vercel). See [Caching and updates](#caching-and-updates).
 
 ## Build pipeline
 
@@ -21,14 +21,20 @@ The app is a static single-page app. `npm run build` writes everything to `dist/
 
 Every push to a branch gets a preview URL, and pushes to `main` deploy to production.
 
-## Cloudflare Pages
+## Cloudflare Workers
 
-1. Workers & Pages → Create → Pages → Connect to Git, then pick the repository.
-2. Build settings:
-   - Framework preset: **None** (or Vite)
+The app is deployed as a Worker with static assets only (no Worker script). `wrangler.jsonc` points Wrangler at `dist/`, and its `previews` block (empty is fine) is what `wrangler preview` needs to create per-branch previews.
+
+1. Workers & Pages → Create → Import a repository, then pick the repository.
+2. Build settings (Settings → Build):
    - Build command: `npm run build`
-   - Build output directory: `dist`
-3. Environment variable: `NODE_VERSION` = `22` (Cloudflare doesn't read `.nvmrc` on every build image version).
+   - Deploy command: `npx wrangler deploy`
+   - Non-production branch deploy command: `npx wrangler preview`
+3. Build variable: `NODE_VERSION` = `22`.
+
+The Worker name in the dashboard must match `name` in `wrangler.jsonc` (`annual-leave-planner`). Pushes to `main` deploy to production, and other branches (including PRs) get a preview URL.
+
+Cloudflare Pages also works: build command `npm run build`, output directory `dist`, `NODE_VERSION` = `22`. Pages ignores `wrangler.jsonc` because it has no `pages_build_output_dir`.
 
 ## Caching and updates
 
@@ -39,7 +45,7 @@ The app is a PWA: a service worker caches the build so it works offline. For use
 | `/`, `/index.html`, `/sw.js`, `/manifest.webmanifest` | `no-cache` (always revalidate) |
 | `/assets/*` (hashed filenames) | `public, max-age=31536000, immutable` |
 
-- **Cloudflare Pages**: `public/_headers` (copied into `dist/` by Vite; the service worker deliberately doesn't precache it).
+- **Cloudflare (Workers or Pages)**: `public/_headers` (copied into `dist/` by Vite; the service worker deliberately doesn't precache it).
 - **Vercel**: `vercel.json`.
 
 If you host elsewhere, replicate these two rules. If `sw.js` or `index.html` were cached for a long time, returning users would keep seeing the old version.
@@ -50,7 +56,7 @@ When a new version is deployed, the browser fetches the changed `sw.js`, install
 
 Not needed for v1, but both hosts make them easy to add:
 
-- **Cloudflare Pages**: add rules to the existing `public/_headers`.
+- **Cloudflare**: add rules to the existing `public/_headers`.
 - **Vercel**: add to the `headers` list in the existing `vercel.json`.
 
 A sensible starting policy for this app (no third-party scripts, and no network calls at runtime):
