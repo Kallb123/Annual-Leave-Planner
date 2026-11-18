@@ -3,6 +3,15 @@ export async function downloadCanvasAsPng(canvas: HTMLCanvasElement, filename: s
   const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/png'))
   if (!blob) throw new Error('Could not encode PNG')
 
+  downloadBlob(blob, filename)
+}
+
+/** Triggers a browser download of a JSON string. */
+export function downloadJson(json: string, filename: string) {
+  downloadBlob(new Blob([json], { type: 'application/json' }), filename)
+}
+
+function downloadBlob(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob)
   try {
     const a = document.createElement('a')

@@ -72,6 +72,8 @@ export type PlannerAction =
   | { type: 'removeCompanyDay'; companyId: string; id: string }
   | { type: 'shiftYear'; by: number }
   | { type: 'resetYear' }
+  /** Replace the whole plan, e.g. from an imported file already validated by `parsePlan`. */
+  | { type: 'replacePlan'; plan: StoredContent }
 
 // ---------------------------------------------------------------------------
 // Selectors
@@ -283,6 +285,8 @@ export function plannerReducer(state: PlannerState, action: PlannerAction): Plan
       return { ...state, yearOffset: state.yearOffset + action.by }
     case 'resetYear':
       return { ...state, yearOffset: 0 }
+    case 'replacePlan':
+      return { ...action.plan, editingCompanyId: null, yearOffset: 0 }
   }
 }
 
@@ -316,7 +320,7 @@ interface StoredStateV4 {
   companies: Company[]
 }
 
-type StoredContent = Omit<StoredStateV4, 'version'>
+export type StoredContent = Omit<StoredStateV4, 'version'>
 
 function defaultPerson(): Person {
   return {
@@ -350,8 +354,8 @@ export function hasSavedState(storage: Storage | undefined = safeLocalStorage())
   return storage ? readStored(storage) !== null : false
 }
 
-export function persist(state: PlannerState, storage: Storage | undefined = safeLocalStorage()) {
-  if (!storage) return
+/** The versioned JSON envelope that is both stored and exported: exactly what `parsePlan` reads back. */
+export function serialisePlan(state: PlannerState): string {
   const payload: StoredStateV4 = {
     version: SCHEMA_VERSION,
     shared: state.shared,
@@ -359,21 +363,63 @@ export function persist(state: PlannerState, storage: Storage | undefined = safe
     activePersonId: state.activePersonId,
     companies: state.companies,
   }
+  return JSON.stringify(payload)
+}
+
+export function persist(state: PlannerState, storage: Storage | undefined = safeLocalStorage()) {
+  if (!storage) return
   try {
-    storage.setItem(STORAGE_KEY, JSON.stringify(payload))
+    storage.setItem(STORAGE_KEY, serialisePlan(state))
   } catch {
     // Quota exceeded or storage disabled: the app still works for this session.
   }
+}
+
+export type ParsePlanResult =
+  | { ok: true; plan: StoredContent }
+  | { ok: false; reason: 'not-json' | 'not-a-plan' | 'newer-version'; message: string }
+
+/**
+ * The single validation entry point for plan JSON (storage, file import, future share links).
+ * Migrates older versions and sanitises every field; entries that are individually invalid
+ * are dropped rather than rejecting the whole plan.
+ */
+export function parsePlan(json: string): ParsePlanResult {
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(json)
+  } catch {
+    return { ok: false, reason: 'not-json', message: 'This file isn’t valid JSON, so it can’t be a leave plan.' }
+  }
+  const version = parsed && typeof parsed === 'object' ? (parsed as { version?: unknown }).version : undefined
+  if (typeof version === 'number' && version > SCHEMA_VERSION) {
+    return { ok: false, reason: 'newer-version', message: 'This plan was made by a newer version of the app. Update the app and try again.' }
+  }
+  const plan = migrateStored(parsed)
+  if (!plan) return { ok: false, reason: 'not-a-plan', message: 'This file isn’t a valid leave plan.' }
+  return { ok: true, plan }
 }
 
 function readStored(storage: Storage): StoredContent | null {
   try {
     const raw = storage.getItem(STORAGE_KEY)
     if (!raw) return null
-    return migrateStored(JSON.parse(raw))
+    const result = parsePlan(raw)
+    return result.ok ? result.plan : null
   } catch {
     return null
   }
+}
+
+/** One-line description of a plan for the import confirmation. */
+export function describePlan(plan: StoredContent): string {
+  const booked = plan.people.reduce(
+    (n, p) => n + Object.values(p.leave).reduce((m, portion) => m + (portion === 'half' ? 0.5 : 1), 0),
+    0,
+  )
+  const companyDays = plan.companies.reduce((n, c) => n + c.days.length, 0)
+  const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`
+  return `${plural(plan.people.length, 'person', 'people')} (${plan.people.map((p) => p.name).join(', ')}), ${plural(booked, 'day')} booked, ${plural(plan.companies.length, 'company', 'companies')} with ${plural(companyDays, 'company day')}`
 }
 
 /**

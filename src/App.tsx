@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import { CompaniesBar } from './components/CompaniesBar'
 import { BridgeSuggestions } from './components/BridgeSuggestions'
 import { PeopleBar } from './components/PeopleBar'
@@ -10,9 +10,10 @@ import { newId } from './components/newId'
 import { Legend, YearCalendar } from './components/YearCalendar'
 import type { Bridge } from './domain/bridges'
 import { REGIONS, type LeavePortion } from './domain/types'
-import { downloadCanvasAsPng } from './export/download'
+import { downloadCanvasAsPng, downloadJson } from './export/download'
 import { renderYearToCanvas } from './export/renderPng'
 import { useMediaQuery } from './hooks/useMediaQuery'
+import { describePlan, parsePlan, serialisePlan } from './state/plannerState'
 import { usePlanner } from './state/usePlanner'
 
 export default function App() {
@@ -20,6 +21,8 @@ export default function App() {
   // Same breakpoint as the single-column layout in styles.css.
   const smallScreen = useMediaQuery('(max-width: 860px)')
   const [exporting, setExporting] = useState(false)
+  const [importError, setImportError] = useState<string | null>(null)
+  const fileInput = useRef<HTMLInputElement>(null)
 
   const toggleDay = useCallback((date: string) => dispatch({ type: 'cycleLeave', date }), [dispatch])
   const setRange = useCallback(
@@ -63,6 +66,23 @@ export default function App() {
       await downloadCanvasAsPng(canvas, `annual-leave-${label.replace('/', '-')}.png`)
     } finally {
       setExporting(false)
+    }
+  }
+
+  function exportJson() {
+    downloadJson(serialisePlan(state), 'annual-leave-plan.json')
+  }
+
+  async function importJson(file: File) {
+    const result = parsePlan(await file.text())
+    if (!result.ok) {
+      setImportError(result.message)
+      return
+    }
+    setImportError(null)
+    const { plan } = result
+    if (confirm(`Replace your current plan?\n\nCurrent: ${describePlan(state)}\n\nImported: ${describePlan(plan)}`)) {
+      dispatch({ type: 'replacePlan', plan })
     }
   }
 
@@ -114,8 +134,31 @@ export default function App() {
               <button type="button" className="primary" onClick={exportPng} disabled={exporting}>
                 {exporting ? 'Exporting…' : 'Download PNG'}
               </button>
+              <button type="button" className="secondary" onClick={exportJson}>
+                Export JSON
+              </button>
+              <button type="button" className="secondary" onClick={() => fileInput.current?.click()}>
+                Import JSON
+              </button>
+              <input
+                ref={fileInput}
+                type="file"
+                accept="application/json,.json"
+                hidden
+                onChange={(e) => {
+                  const file = e.target.files?.[0]
+                  e.target.value = ''
+                  if (file) void importJson(file)
+                }}
+              />
             </div>
           </div>
+
+          {importError && (
+            <p className="notice" role="alert">
+              {importError} Your current plan hasn’t changed.
+            </p>
+          )}
 
           <PeopleBar people={people} editing={companyMode} dispatch={dispatch} />
 
