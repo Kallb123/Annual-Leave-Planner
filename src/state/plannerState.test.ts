@@ -21,8 +21,11 @@ import {
   companyOf,
   hasSavedState,
   initialState,
+  describePlan,
   migrateStored,
+  parsePlan,
   persist,
+  serialisePlan,
   personSettings,
   plannerReducer,
   type PlannerState,
@@ -802,5 +805,94 @@ describe('hasSavedState', () => {
     const storage = new MemoryStorage()
     persist(initialState(storage), storage)
     expect(hasSavedState(storage)).toBe(true)
+  })
+})
+
+describe('plan import/export', () => {
+  const state: PlannerState = {
+    shared: { ...DEFAULT_SHARED, region: 'scotland' },
+    people: [
+      { ...alice, allowanceDays: 30, leave: { '2026-11-18': 'half', '2026-11-19': 'full' }, companyId: 'co1' },
+      { ...alice, id: 'p2', name: 'Bob', colour: '#2563eb', workingDays: [1, 2], leave: { '2026-11-20': 'full' }, companyId: null },
+    ],
+    activePersonId: 'p2',
+    companies: [
+      { id: 'co1', name: 'Acme', days: [closure] },
+      { id: 'co2', name: 'Beta', days: [] },
+    ],
+    editingCompanyId: null,
+    yearOffset: 0,
+  }
+
+  it('round-trips through serialisePlan and parsePlan', () => {
+    const result = parsePlan(serialisePlan(state))
+    expect(result).toEqual({
+      ok: true,
+      plan: { shared: state.shared, people: state.people, activePersonId: 'p2', companies: state.companies },
+    })
+  })
+
+  it('serialises exactly what persist stores', () => {
+    const storage = new MemoryStorage()
+    persist(state, storage)
+    expect(storage.getItem(STORAGE_KEY)).toBe(serialisePlan(state))
+  })
+
+  it('rejects invalid JSON, non-plans and unknown versions with distinct reasons', () => {
+    const reason = (json: string) => {
+      const r = parsePlan(json)
+      return r.ok ? 'ok' : r.reason
+    }
+    expect(reason('{nope')).toBe('not-json')
+    expect(reason('')).toBe('not-json')
+    for (const json of ['null', '42', '"plan"', '[]', '{}', '{"version":0}', '{"version":"4"}']) {
+      expect(reason(json)).toBe('not-a-plan')
+    }
+    expect(reason('{"version":5}')).toBe('newer-version')
+    const newer = parsePlan('{"version":99}')
+    expect(!newer.ok && newer.message).toMatch(/newer version/)
+  })
+
+  it('sanitises tampered fields instead of trusting them', () => {
+    const tampered = JSON.parse(serialisePlan(state))
+    tampered.people[0].leave = { '2026-11-18': 'full', 'not-a-date': 'full', '2026-11-19': 'banana' }
+    tampered.people[0].colour = 'red'
+    tampered.people[1].allowanceDays = 'lots'
+    tampered.people.push('junk', { id: 'p2', name: 'Duplicate' })
+    tampered.activePersonId = 'nobody'
+    tampered.companies[0].days = 'oops'
+    const result = parsePlan(JSON.stringify(tampered))
+    if (!result.ok) throw new Error('expected a plan')
+    const { people, activePersonId, companies } = result.plan
+    expect(people).toHaveLength(2)
+    expect(people[0].leave).toEqual({ '2026-11-18': 'full' })
+    expect(people[0].colour).toMatch(/^#[0-9a-f]{6}$/)
+    expect(people[1].allowanceDays).toBe(DEFAULT_PERSON_SETTINGS.allowanceDays)
+    expect(activePersonId).toBe(people[0].id)
+    expect(companies[0].days).toEqual([])
+  })
+
+  it('migrates older versions', () => {
+    const v1 = parsePlan(JSON.stringify({ version: 1, settings: { allowanceDays: 20 }, leave: { '2026-03-03': 'half' } }))
+    if (!v1.ok) throw new Error('expected a plan')
+    expect(v1.plan.people).toHaveLength(1)
+    expect(v1.plan.people[0]).toMatchObject({ allowanceDays: 20, leave: { '2026-03-03': 'half' }, companyId: 'company-1' })
+    expect(v1.plan.companies).toHaveLength(1)
+
+    const v3 = parsePlan(JSON.stringify({ version: 3, shared: {}, people: [alice], activePersonId: alice.id, companyDays: [closure] }))
+    if (!v3.ok) throw new Error('expected a plan')
+    expect(v3.plan.companies[0].days).toEqual([closure])
+    expect(v3.plan.people[0].companyId).toBe(v3.plan.companies[0].id)
+  })
+
+  it('replacePlan swaps the whole plan and resets view state', () => {
+    const before: PlannerState = { ...initialState(undefined), editingCompanyId: 'company-1', yearOffset: 3 }
+    const result = parsePlan(serialisePlan(state))
+    if (!result.ok) throw new Error('expected a plan')
+    expect(plannerReducer(before, { type: 'replacePlan', plan: result.plan })).toEqual(state)
+  })
+
+  it('describes a plan for the import confirmation', () => {
+    expect(describePlan(state)).toBe('2 people (Alice, Bob), 2.5 days booked, 2 companies with 1 company day')
   })
 })

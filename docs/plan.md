@@ -53,7 +53,7 @@ People with a fixed annual leave allowance want to see the whole leave year at a
 
 - [ ] PNG options: orientation (4×3 or 3×4), include or hide the summary, a custom title
 - [ ] Optional user name or label on the export
-- [ ] Export or import plan as JSON (backup and moving between devices)
+- [x] Export or import plan as JSON (backup and moving between devices)
 - [ ] iCal (`.ics`) export of booked leave
 - [ ] Shareable read-only link (plan encoded in the URL hash, so still no backend)
 
@@ -79,4 +79,4 @@ People with a fixed annual leave allowance want to see the whole leave year at a
 ## Known limitations
 
 - Bank holiday data only runs as far as GOV.UK has published (usually the end of next year). The UI shows a notice when a leave year goes past it.
-- Data is stored per browser. Clearing site data removes the plan (JSON export in M2 addresses this).
+- Data is stored per browser. Clearing site data removes the plan; the JSON export is the backup.
