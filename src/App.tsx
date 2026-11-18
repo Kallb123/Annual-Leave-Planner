@@ -8,7 +8,7 @@ import { renderYearToCanvas } from './export/renderPng'
 import { usePlanner } from './state/usePlanner'
 
 export default function App() {
-  const { state, dispatch, range, label, yearView, summary, hasBankHolidayData } = usePlanner()
+  const { state, dispatch, range, label, yearView, summary, overEntitlementWarning, hasBankHolidayData } = usePlanner()
   const [exporting, setExporting] = useState(false)
 
   const toggleDay = useCallback((date: string) => dispatch({ type: 'cycleLeave', date }), [dispatch])
@@ -22,6 +22,7 @@ export default function App() {
         title: `Annual leave ${label}`,
         subtitle: `${range.start} to ${range.end} · ${regionLabel} bank holidays`,
         summary,
+        warning: overEntitlementWarning ?? undefined,
       })
       await downloadCanvasAsPng(canvas, `annual-leave-${label.replace('/', '-')}.png`)
     } finally {
@@ -75,7 +76,7 @@ export default function App() {
             </div>
           </div>
 
-          <SummaryBar summary={summary} />
+          <SummaryBar summary={summary} warning={overEntitlementWarning} />
 
           {!hasBankHolidayData && (
             <p className="notice" role="status">

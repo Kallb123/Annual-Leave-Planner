@@ -43,4 +43,13 @@ describe('buildYearView', () => {
     })
     expect(cells.filter((c) => c.isToday).map((c) => c.date)).toEqual(['2026-11-18'])
   })
+
+  it('flags days in the over-limit set, in range only', () => {
+    const range = { start: '2026-09-15', end: '2027-09-14' }
+    const leave = { '2026-09-14': 'full', '2026-09-15': 'full' } as const
+    const over = new Set(['2026-09-14', '2026-09-15'])
+    const view = buildYearView(range, DEFAULT_SETTINGS, leave, new Map(), null, over)
+    const cells = view.months.flatMap((m) => m.weeks.flat()).filter((c) => c !== null)
+    expect(cells.filter((c) => c.overLimit).map((c) => c.date)).toEqual(['2026-09-15'])
+  })
 })

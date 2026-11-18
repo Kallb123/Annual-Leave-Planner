@@ -18,6 +18,7 @@ export const palette = {
   leave: '#2f9e6a',
   leaveHalf: '#9fd8bb',
   today: '#2f6fed',
+  warn: '#c2410c',
 } as const
 
 export type PaletteKey = keyof typeof palette

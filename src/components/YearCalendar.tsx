@@ -59,6 +59,7 @@ function Day({ cell, onToggle }: { cell: DayCell; onToggle: (date: string) => vo
     cell.leave && `day--leave-${cell.leave}`,
     !cell.inRange && 'day--out-of-range',
     cell.isToday && 'day--today',
+    cell.overLimit && 'day--over-limit',
   ]
     .filter(Boolean)
     .join(' ')
@@ -67,6 +68,7 @@ function Day({ cell, onToggle }: { cell: DayCell; onToggle: (date: string) => vo
     cell.holidayName,
     cell.leave === 'full' && 'Annual leave',
     cell.leave === 'half' && 'Half day leave',
+    cell.overLimit && 'over entitlement',
   ]
     .filter(Boolean)
     .join(', ')

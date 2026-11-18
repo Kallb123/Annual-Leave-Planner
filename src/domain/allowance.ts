@@ -67,3 +67,43 @@ export function summarise(
     remaining: entitlement - booked - bankHolidaysDeducted,
   }
 }
+
+/**
+ * Booked dates that take the running total over the entitlement.
+ *
+ * Walks the leave year chronologically. Bank holiday deductions are fixed, so
+ * they count first; each booked bookable day then adds to the total. A day (or
+ * half day) that ends above the entitlement is over, including one that
+ * straddles the limit. Only bookable days count, exactly as in `summarise`.
+ */
+export function overAllocatedDates(
+  range: DateRange,
+  settings: Settings,
+  leave: LeaveEntries,
+  holidays: BankHolidayIndex,
+): Set<IsoDate> {
+  const { entitlement, bankHolidaysDeducted } = summarise(range, settings, leave, holidays)
+  const over = new Set<IsoDate>()
+  let used = bankHolidaysDeducted
+
+  for (const date of eachDay(range.start, range.end)) {
+    const portion = leave[date]
+    if (!portion || !isBookable(date, settings, holidays)) continue
+    used += portionDays(portion)
+    if (used > entitlement) over.add(date)
+  }
+  return over
+}
+
+/** "1 day", "half a day", "1.5 days", "2 days". */
+export function formatDays(days: number): string {
+  if (days === 0.5) return 'half a day'
+  const n = Number.isInteger(days) ? String(days) : days.toFixed(1)
+  return `${n} ${days === 1 ? 'day' : 'days'}`
+}
+
+/** Warning wording shared by the screen and the PNG; null when within entitlement. */
+export function overEntitlementMessage(remaining: number, label: string): string | null {
+  if (remaining >= 0) return null
+  return `You\u2019ve booked ${formatDays(-remaining)} more than your entitlement for ${label}.`
+}
