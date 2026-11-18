@@ -1,3 +1,5 @@
+import type { WorkPattern } from '../domain/workPattern'
+
 /** Small display helpers shared by the rail and summary components. */
 
 const DAY_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
@@ -10,6 +12,12 @@ export function workingDaysLabel(days: readonly number[]): string {
   const contiguous = ordered.every((d, i) => i === 0 || d === (ordered[i - 1] + 1) % 7)
   if (contiguous && ordered.length > 2) return `${DAY_SHORT[ordered[0]]}–${DAY_SHORT[ordered[ordered.length - 1]]}`
   return ordered.map((d) => DAY_SHORT[d]).join(', ')
+}
+
+/** "Mon–Fri" for a weekly pattern, "Mon–Fri / Mon–Thu" for a fortnightly one. */
+export function workPatternLabel(pattern: WorkPattern): string {
+  const week1 = workingDaysLabel(pattern.workingDays)
+  return pattern.workingDaysWeek2 === null ? week1 : `${week1} / ${workingDaysLabel(pattern.workingDaysWeek2)}`
 }
 
 /** Share of the entitlement, as a CSS width, clamped to 0–100%. */
