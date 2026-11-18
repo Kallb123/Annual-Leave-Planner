@@ -42,6 +42,43 @@ export const DEFAULT_SETTINGS: Settings = {
   showBridgeSuggestions: true,
 }
 
+/** Settings that belong to one person rather than the whole planner. */
+export const PERSON_SETTING_KEYS = ['allowanceDays', 'carryOverDays', 'workingDays', 'bankHolidaysDeducted'] as const
+
+export type PersonSettingKey = (typeof PERSON_SETTING_KEYS)[number]
+
+/** Per-person part of `Settings`: allowance, carry-over, working pattern, bank-holiday deduction. */
+export type PersonSettings = Pick<Settings, PersonSettingKey>
+
+/** Planner-wide part of `Settings`: leave year start, region, bridge suggestions. */
+export type SharedSettings = Omit<Settings, PersonSettingKey>
+
+export const DEFAULT_PERSON_SETTINGS: PersonSettings = {
+  allowanceDays: DEFAULT_SETTINGS.allowanceDays,
+  carryOverDays: DEFAULT_SETTINGS.carryOverDays,
+  workingDays: DEFAULT_SETTINGS.workingDays,
+  bankHolidaysDeducted: DEFAULT_SETTINGS.bankHolidaysDeducted,
+}
+
+/** Maximum length of a person's name, after trimming. */
+export const PERSON_NAME_MAX = 40
+
+/** Name given to the person created from single-person (v1/v2) saved data, or on first visit. */
+export const DEFAULT_PERSON_NAME = 'Me'
+
+/**
+ * Someone whose leave is planned. Each person has their own allowance,
+ * working pattern and bookings, and a colour used for their leave on the
+ * calendar and in the PNG.
+ */
+export interface Person extends PersonSettings {
+  id: string
+  name: string
+  /** `#rrggbb`, lower case. */
+  colour: string
+  leave: LeaveEntries
+}
+
 export type LeavePortion = 'full' | 'half'
 
 /** Booked leave, keyed by date. Stored independently of any leave year. */
