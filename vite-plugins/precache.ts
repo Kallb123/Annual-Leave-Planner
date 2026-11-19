@@ -1,7 +1,10 @@
 import { createHash } from 'node:crypto'
 
-/** Files that live in `dist/` but must never be precached. */
-const EXCLUDED = [/^sw\.js$/, /^_headers$/, /^_redirects$/, /\.map$/]
+/**
+ * Files that live in `dist/` but must never be precached. The link preview
+ * image (`og-image*.png`) is only fetched by other apps' crawlers.
+ */
+const EXCLUDED = [/^sw\.js$/, /^_headers$/, /^_redirects$/, /\.map$/, /^og-image.*\.png$/]
 
 export interface BuiltFile {
   /** Path relative to the output directory, using forward slashes. */

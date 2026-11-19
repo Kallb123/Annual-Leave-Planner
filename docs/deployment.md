@@ -44,11 +44,12 @@ The app is a PWA: a service worker caches the build so it works offline. For use
 | --- | --- |
 | `/`, `/index.html`, `/sw.js`, `/manifest.webmanifest` | `no-cache` (always revalidate) |
 | `/assets/*` (hashed filenames) | `public, max-age=31536000, immutable` |
+| `/og-image.png` (link preview image, see [architecture](architecture.md#link-previews)) | `public, max-age=86400` |
 
 - **Cloudflare (Workers or Pages)**: `public/_headers` (copied into `dist/` by Vite; the service worker deliberately doesn't precache it).
 - **Vercel**: `vercel.json`.
 
-If you host elsewhere, replicate these two rules. If `sw.js` or `index.html` were cached for a long time, returning users would keep seeing the old version.
+If you host elsewhere, replicate these rules. If `sw.js` or `index.html` were cached for a long time, returning users would keep seeing the old version.
 
 When a new version is deployed, the browser fetches the changed `sw.js`, installs it in the background and the app shows an "Update available" banner. Clicking **Reload** activates it. The service worker is only registered in production builds, so `npm run dev` is never affected. To test locally, run `npm run build && npm run preview`.
 

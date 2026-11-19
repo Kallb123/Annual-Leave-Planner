@@ -121,6 +121,14 @@ The app is installable (`public/manifest.webmanifest`, icons in `public/icons/`,
 - **Hosting.** `sw.js`, `index.html` and the manifest must be served with `no-cache`, and `/assets/*` as immutable (`public/_headers`, `vercel.json`; see deployment docs).
 - **Icons.** SVG sources are in `scripts/icons/`; `npm run generate-icons` renders the PNGs with Playwright. The PNGs are committed, so the build doesn't need it.
 
+## Link previews
+
+`index.html` has Open Graph and Twitter Card tags, so links pasted into WhatsApp, Slack, Teams, iMessage and similar apps show a card with the title, description and `public/og-image.png`. Crawlers don't run JavaScript, so the tags are static, and they use absolute URLs on the production domain (`https://annual-leave-planner.kallum.uk/`) because relative image URLs are ignored. Preview deployments therefore show the production image. A shared link always gets the same generic card.
+
+- **Image.** 1200×630 PNG, kept well under 300 KB so WhatsApp shows it. The source is `scripts/og-image/og-image.html` (colours from `theme.ts`, the self-hosted fonts and the app icon); `npm run generate-og-image` renders it with Playwright. The PNG is committed.
+- **Changing it.** Apps cache previews for days or weeks, so save a changed image under a new name (for example `og-image-2.png`), update the `og:image` tag and the cache rules (`public/_headers`, `vercel.json`), and delete the old file. The service worker doesn't precache `og-image*.png` (see `vite-plugins/precache.ts`).
+- **Checking it.** After deploying, paste the URL into a validator such as opengraph.xyz, LinkedIn Post Inspector or the Facebook Sharing Debugger.
+
 **Why hand-written?** The worker is about 60 lines and the app has one static page, so `vite-plugin-pwa`/Workbox would add a dependency (and a risk with new Vite majors) for routing features we don't need. The trade-off is that cache behaviour is ours to maintain.
 
 ## Bank holiday data pipeline

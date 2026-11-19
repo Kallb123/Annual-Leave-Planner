@@ -10,6 +10,10 @@
 /manifest.webmanifest
   Cache-Control: no-cache
 
+# Link preview image. Renamed rather than changed, so a day is plenty.
+/og-image.png
+  Cache-Control: public, max-age=86400
+
 # Hashed filenames never change, so cache them for a year.
 /assets/*
   Cache-Control: public, max-age=31536000, immutable

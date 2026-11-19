@@ -14,6 +14,7 @@
     "test:watch": "vitest",
     "update-bank-holidays": "node scripts/update-bank-holidays.mjs",
     "generate-icons": "node scripts/generate-icons.mjs",
+    "generate-og-image": "node scripts/generate-og-image.mjs",
     "bump": "npm version --no-git-tag-version"
   },
   "dependencies": {
