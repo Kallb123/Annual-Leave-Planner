@@ -1,5 +1,7 @@
 import { useCallback, useState, type CSSProperties } from 'react'
 import { BridgeSuggestions } from './components/BridgeSuggestions'
+import { CalendarImportDialog, type CalendarImport, type CalendarImportChoice } from './components/CalendarImportDialog'
+import { CalendarsBar } from './components/CalendarsBar'
 import { CompaniesBar, ModeToggle } from './components/CompaniesBar'
 import { ExportDialog } from './components/ExportDialog'
 import type { CompanyDayChoice } from './components/CompanyDayPopover'
@@ -13,11 +15,13 @@ import { Legend, YearCalendar } from './components/YearCalendar'
 import type { Bridge } from './domain/bridges'
 import { formatBridgeDates } from './domain/bridges'
 import { formatMonthSpan, monthSpanSlug, monthsOfRange, type MonthSpan } from './domain/exportRange'
-import { REGIONS, type LeavePortion } from './domain/types'
+import { addDays, todayIso } from './domain/dates'
+import { IcsFormatError, parseIcs } from './domain/ics'
+import { MAX_CALENDARS, MAX_CALENDAR_EVENTS, REGIONS, type LeavePortion } from './domain/types'
 import { downloadCanvasAsPng, downloadJson } from './export/download'
 import { loadExportFonts, renderYearToCanvas } from './export/renderPng'
 import { useMediaQuery } from './hooks/useMediaQuery'
-import { companyDayColours } from './theme'
+import { companyDayColours, nextCalendarColour } from './theme'
 import { companyOf, describePlan, parsePlan, serialisePlan } from './state/plannerState'
 import { usePlanner } from './state/usePlanner'
 import './App.css'
@@ -36,6 +40,7 @@ export default function App() {
   const [exporting, setExporting] = useState(false)
   const [exportOpen, setExportOpen] = useState(false)
   const [importError, setImportError] = useState<string | null>(null)
+  const [calendarImport, setCalendarImport] = useState<CalendarImport | null>(null)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [settingsTab, setSettingsTab] = useState<SettingsTab>('people')
 
@@ -98,6 +103,27 @@ export default function App() {
     } finally {
       setExporting(false)
     }
+  }
+
+  async function importCalendarFile(file: File) {
+    if (state.calendars.length >= MAX_CALENDARS) {
+      setCalendarImport({ fileName: file.name, error: `You can import up to ${MAX_CALENDARS} calendars. Remove one to import another.` })
+      return
+    }
+    try {
+      const text = await file.text()
+      const today = todayIso()
+      const result = parseIcs(text, { repeatUntil: addDays(today, 3 * 366), maxEvents: MAX_CALENDAR_EVENTS })
+      setCalendarImport({ fileName: file.name, result })
+    } catch (e) {
+      const message = e instanceof IcsFormatError ? e.message : 'That file couldn’t be read.'
+      setCalendarImport({ fileName: file.name, error: message })
+    }
+  }
+
+  function addImportedCalendar(choice: CalendarImportChoice) {
+    dispatch({ type: 'addCalendar', id: newId('cal'), idPrefix: newId('ev'), ...choice })
+    setCalendarImport(null)
   }
 
   function exportJson() {
@@ -198,13 +224,21 @@ export default function App() {
         onClose={() => setExportOpen(false)}
       />
 
+      <CalendarImportDialog
+        data={calendarImport}
+        defaultColour={nextCalendarColour(state.calendars.map((c) => c.colour))}
+        onImport={addImportedCalendar}
+        onClose={() => setCalendarImport(null)}
+      />
+
       <div className="layout">
         {phone ? (
           <PeopleBar people={people} viewLabel={label} companies={companies} editing={companyMode} variant="chips" dispatch={dispatch} />
         ) : (
-          <aside className="rail" aria-label="People, company days and bridge ideas">
+          <aside className="rail" aria-label="People, company days, imported calendars and bridge ideas">
             <PeopleBar people={people} viewLabel={label} companies={companies} editing={companyMode} dispatch={dispatch} />
             <CompaniesBar companies={companies} people={people.map((p) => p.person)} editingCompanyId={state.editingCompanyId} ranges={companyRanges} dispatch={dispatch} />
+            <CalendarsBar calendars={state.calendars} range={range} onImportFile={(file) => void importCalendarFile(file)} dispatch={dispatch} />
             <BridgeSuggestions bridges={shownBridges} name={activePerson.name} onBook={bookBridge} />
           </aside>
         )}
@@ -278,6 +312,7 @@ export default function App() {
               activeColour={activePerson.colour}
               showBridge={!companyMode && bridges.length > 0}
               company={viewCompany}
+              calendars={yearView.calendars}
             />
           </section>
 
@@ -303,6 +338,8 @@ export default function App() {
         activePerson={activePerson}
         people={people}
         companies={companies}
+        calendars={state.calendars}
+        onImportCalendarFile={(file) => void importCalendarFile(file)}
         range={activeRange}
         label={activeLabel}
         dispatch={dispatch}

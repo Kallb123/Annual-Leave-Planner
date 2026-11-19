@@ -79,3 +79,17 @@ export function LogoMark({ size = 28 }: IconProps) {
     </svg>
   )
 }
+
+export const EyeIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M1.5 8S4 3.5 8 3.5 14.5 8 14.5 8 12 12.5 8 12.5 1.5 8 1.5 8Z" />
+    <circle cx="8" cy="8" r="2" />
+  </Svg>
+)
+
+export const EyeOffIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M6.3 3.7A6.3 6.3 0 0 1 8 3.5C12 3.5 14.5 8 14.5 8a11 11 0 0 1-1.7 2.2M9.7 12.3A6.3 6.3 0 0 1 8 12.5C4 12.5 1.5 8 1.5 8a11 11 0 0 1 2.2-2.7" />
+    <path d="M6.6 6.6a2 2 0 0 0 2.8 2.8M2 2l12 12" />
+  </Svg>
+)

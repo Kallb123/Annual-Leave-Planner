@@ -6,13 +6,20 @@ import {
   PERSON_NAME_MAX,
   COMPANY_NAME_MAX,
   DEFAULT_COMPANY_DAY_NAME,
+  CALENDAR_NAME_MAX,
+  DEFAULT_CALENDAR_NAME,
+  MAX_CALENDARS,
+  CALENDAR_EVENT_NAME_MAX,
+  DEFAULT_CALENDAR_EVENT_NAME,
+  MAX_CALENDAR_EVENTS,
   type Company,
   type CompanyDay,
+  type ImportedCalendar,
   type LeaveEntries,
   type Person,
   type Settings,
 } from '../domain/types'
-import { COMPANY_COLOURS, DEFAULT_COMPANY_COLOUR, PERSON_COLOURS } from '../theme'
+import { CALENDAR_COLOURS, COMPANY_COLOURS, DEFAULT_COMPANY_COLOUR, PERSON_COLOURS } from '../theme'
 import {
   STORAGE_KEY,
   MAX_COMPANIES,
@@ -65,6 +72,7 @@ const base: PlannerState = {
   people: [alice],
   activePersonId: 'p1',
   companies: [],
+  calendars: [],
   editingCompanyId: null,
   yearOffset: 0,
 }
@@ -95,6 +103,15 @@ const effective = (s: PlannerState) => personSettings(s.shared, activePerson(s))
 const twoPeople: PlannerState = {
   ...base,
   people: [alice, { ...alice, id: 'p2', name: 'Bob', colour: PERSON_COLOURS[1] }],
+}
+
+const holidays: ImportedCalendar = {
+  id: 'cal1',
+  name: 'School holidays',
+  colour: '#0e9f8e',
+  style: 'outline',
+  visible: true,
+  events: [{ id: 'e1', start: '2026-12-21', end: '2027-01-01', name: 'Christmas' }],
 }
 
 const closure: CompanyDay = {
@@ -538,12 +555,13 @@ describe('persistence', () => {
         { id: 'co1', name: 'Acme', colour: '#6f5bb8', style: 'fill', leaveYearStartMonth: 1, leaveYearStartDay: 1, days: [closure] },
         { id: 'co2', name: 'Beta', colour: '#6f5bb8', style: 'fill', leaveYearStartMonth: 1, leaveYearStartDay: 1, days: [] },
       ],
+      calendars: [holidays],
       editingCompanyId: 'co2',
       yearOffset: 2,
     }
     persist(state, storage)
     const saved = JSON.parse(storage.getItem(STORAGE_KEY)!)
-    expect(saved.version).toBe(7)
+    expect(saved.version).toBe(8)
     expect(saved).not.toHaveProperty('editingCompanyId')
     expect(saved).not.toHaveProperty('companyDays')
     expect(initialState(storage)).toEqual({ ...state, editingCompanyId: null, yearOffset: 0 })
@@ -647,12 +665,12 @@ describe('persistence', () => {
       expect(restored.people[0].companyId).toBe('company-1')
     })
 
-    it('rewrites as v7 on the next persist', () => {
+    it('rewrites as v8 on the next persist', () => {
       const storage = new MemoryStorage()
       storage.setItem(STORAGE_KEY, JSON.stringify(v1))
       persist(initialState(storage), storage)
       const saved = JSON.parse(storage.getItem(STORAGE_KEY)!)
-      expect(saved.version).toBe(7)
+      expect(saved.version).toBe(8)
       expect(saved.companies).toEqual([{ id: 'company-1', name: 'My company', colour: '#6f5bb8', style: 'fill', leaveYearStartMonth: 1, leaveYearStartDay: 1, days: [] }])
       expect(saved.people[0].leave).toEqual(v1.leave)
       expect(saved).not.toHaveProperty('settings')
@@ -845,6 +863,7 @@ describe('plan import/export', () => {
       { id: 'co1', name: 'Acme', colour: '#6f5bb8', style: 'fill', leaveYearStartMonth: 1, leaveYearStartDay: 1, days: [closure] },
       { id: 'co2', name: 'Beta', colour: '#6f5bb8', style: 'fill', leaveYearStartMonth: 1, leaveYearStartDay: 1, days: [] },
     ],
+    calendars: [],
     editingCompanyId: null,
     yearOffset: 0,
   }
@@ -853,7 +872,7 @@ describe('plan import/export', () => {
     const result = parsePlan(serialisePlan(state))
     expect(result).toEqual({
       ok: true,
-      plan: { shared: state.shared, people: state.people, activePersonId: 'p2', companies: state.companies },
+      plan: { shared: state.shared, people: state.people, activePersonId: 'p2', companies: state.companies, calendars: [] },
     })
   })
 
@@ -873,7 +892,7 @@ describe('plan import/export', () => {
     for (const json of ['null', '42', '"plan"', '[]', '{}', '{"version":0}', '{"version":"5"}']) {
       expect(reason(json)).toBe('not-a-plan')
     }
-    expect(reason('{"version":8}')).toBe('newer-version')
+    expect(reason('{"version":9}')).toBe('newer-version')
     const newer = parsePlan('{"version":99}')
     expect(!newer.ok && newer.message).toMatch(/newer version/)
   })
@@ -959,7 +978,7 @@ describe('fortnightly working pattern', () => {
     const person = { ...alice, workingDaysWeek2: [1, 2, 3, 4], fortnightStart: '2026-11-16' }
     const state: PlannerState = { ...base, people: [person], activePersonId: person.id }
     const json = serialisePlan(state)
-    expect(JSON.parse(json).version).toBe(7)
+    expect(JSON.parse(json).version).toBe(8)
     const parsed = parsePlan(json)
     expect(parsed.ok && parsed.plan.people[0]).toMatchObject({ workingDaysWeek2: [1, 2, 3, 4], fortnightStart: '2026-11-16' })
   })
@@ -1271,6 +1290,218 @@ describe('per-company leave year start', () => {
     it("returns shared's start for no company or a dangling id", () => {
       expect(leaveYearStartFor(aprilShared, cos, { companyId: null })).toEqual(APRIL)
       expect(leaveYearStartFor(aprilShared, cos, { companyId: 'gone' })).toEqual(APRIL)
+    })
+  })
+})
+
+describe('imported calendars', () => {
+  const ev = (start: string, end: string, name: string) => ({ start, end, name })
+  const add = (state: PlannerState, patch: Record<string, unknown> = {}) =>
+    plannerReducer(state, {
+      type: 'addCalendar',
+      id: 'k1',
+      name: 'Term dates',
+      events: [ev('2026-12-21', '2027-01-01', 'Christmas'), ev('2026-10-26', '2026-10-30', 'Half term')],
+      idPrefix: 'imp',
+      ...patch,
+    } as never)
+  const withCal: PlannerState = { ...base, calendars: [holidays] }
+
+  describe('addCalendar', () => {
+    it('appends a visible outline calendar with sorted, id-prefixed events', () => {
+      const s = add(base)
+      expect(s.calendars).toEqual([
+        {
+          id: 'k1',
+          name: 'Term dates',
+          colour: CALENDAR_COLOURS[0],
+          style: 'outline',
+          visible: true,
+          events: [
+            { id: 'imp-1', start: '2026-10-26', end: '2026-10-30', name: 'Half term' },
+            { id: 'imp-0', start: '2026-12-21', end: '2027-01-01', name: 'Christmas' },
+          ],
+        },
+      ])
+    })
+
+    it('leaves everything else alone and appends to the end', () => {
+      const before: PlannerState = { ...withCal, editingCompanyId: 'co1', yearOffset: 2 }
+      const s = add(before)
+      expect(s.calendars.map((c) => c.id)).toEqual(['cal1', 'k1'])
+      expect(s.activePersonId).toBe(before.activePersonId)
+      expect(s.editingCompanyId).toBe('co1')
+      expect({ ...s, calendars: [] }).toEqual({ ...before, calendars: [] })
+    })
+
+    it('cleans the name and falls back to the default', () => {
+      expect(add(base, { name: '  Spaced  ' }).calendars[0].name).toBe('Spaced')
+      expect(add(base, { name: 'x'.repeat(CALENDAR_NAME_MAX + 10) }).calendars[0].name).toHaveLength(CALENDAR_NAME_MAX)
+      expect(add(base, { name: '   ' }).calendars[0].name).toBe(DEFAULT_CALENDAR_NAME)
+    })
+
+    it('uses a valid colour lower-cased, else the next unused preset', () => {
+      expect(add(base, { colour: '#ABCDEF' }).calendars[0].colour).toBe('#abcdef')
+      expect(add(base, { colour: 'red' }).calendars[0].colour).toBe(CALENDAR_COLOURS[0])
+      const taken = { ...base, calendars: [{ ...holidays, colour: CALENDAR_COLOURS[0] }] }
+      expect(add(taken).calendars[1].colour).toBe(CALENDAR_COLOURS[1])
+    })
+
+    it('uses a valid style, else outline', () => {
+      expect(add(base, { style: 'fill' }).calendars[0].style).toBe('fill')
+      expect(add(base, { style: 'wavy' }).calendars[0].style).toBe('outline')
+    })
+
+    it('drops invalid events and caps the count', () => {
+      const events = [ev('nope', '2026-01-01', 'bad'), ev('2026-02-02', '2026-02-01', 'backwards'), ev('2026-03-03', '2026-03-03', '  ')]
+      const cal = add(base, { events }).calendars[0]
+      expect(cal.events).toEqual([{ id: 'imp-2', start: '2026-03-03', end: '2026-03-03', name: DEFAULT_CALENDAR_EVENT_NAME }])
+      const many = Array.from({ length: MAX_CALENDAR_EVENTS + 5 }, () => ev('2026-01-01', '2026-01-01', 'x'))
+      expect(add(base, { events: many }).calendars[0].events).toHaveLength(MAX_CALENDAR_EVENTS)
+      expect(add(base, { events: 'x' }).calendars[0].events).toEqual([])
+    })
+
+    it('is a no-op for a duplicate id or at the cap', () => {
+      expect(add(withCal, { id: 'cal1' })).toBe(withCal)
+      const full: PlannerState = {
+        ...base,
+        calendars: Array.from({ length: MAX_CALENDARS }, (_, i) => ({ ...holidays, id: `c${i}` })),
+      }
+      expect(add(full)).toBe(full)
+    })
+  })
+
+  describe('edit actions', () => {
+    it('renames, ignoring empty names', () => {
+      const s = plannerReducer(withCal, { type: 'renameCalendar', id: 'cal1', name: '  Summer  ' })
+      expect(s.calendars[0].name).toBe('Summer')
+      expect(plannerReducer(withCal, { type: 'renameCalendar', id: 'cal1', name: '  ' })).toEqual(withCal)
+      expect(plannerReducer(withCal, { type: 'renameCalendar', id: 'zz', name: 'x' })).toBe(withCal)
+    })
+
+    it('sets colour, ignoring invalid values', () => {
+      expect(plannerReducer(withCal, { type: 'setCalendarColour', id: 'cal1', colour: '#ABCDEF' }).calendars[0].colour).toBe('#abcdef')
+      expect(plannerReducer(withCal, { type: 'setCalendarColour', id: 'cal1', colour: 'blue' })).toEqual(withCal)
+      expect(plannerReducer(withCal, { type: 'setCalendarColour', id: 'zz', colour: '#abcdef' })).toBe(withCal)
+    })
+
+    it('sets style, ignoring invalid values', () => {
+      expect(plannerReducer(withCal, { type: 'setCalendarStyle', id: 'cal1', style: 'fill' }).calendars[0].style).toBe('fill')
+      expect(plannerReducer(withCal, { type: 'setCalendarStyle', id: 'cal1', style: 'wavy' as never })).toEqual(withCal)
+      expect(plannerReducer(withCal, { type: 'setCalendarStyle', id: 'zz', style: 'fill' })).toBe(withCal)
+    })
+
+    it('shows and hides, ignoring non-booleans', () => {
+      const hidden = plannerReducer(withCal, { type: 'setCalendarVisible', id: 'cal1', visible: false })
+      expect(hidden.calendars[0].visible).toBe(false)
+      expect(plannerReducer(hidden, { type: 'setCalendarVisible', id: 'cal1', visible: true }).calendars[0].visible).toBe(true)
+      expect(plannerReducer(withCal, { type: 'setCalendarVisible', id: 'cal1', visible: 'no' as never })).toEqual(withCal)
+      expect(plannerReducer(withCal, { type: 'setCalendarVisible', id: 'zz', visible: false })).toBe(withCal)
+    })
+
+    it('removes a calendar, leaving others', () => {
+      const two: PlannerState = { ...base, calendars: [holidays, { ...holidays, id: 'cal2' }] }
+      expect(plannerReducer(two, { type: 'removeCalendar', id: 'cal1' }).calendars.map((c) => c.id)).toEqual(['cal2'])
+      expect(plannerReducer(two, { type: 'removeCalendar', id: 'zz' })).toBe(two)
+    })
+
+    it('removes one event', () => {
+      const cal = { ...holidays, events: [...holidays.events, { id: 'e2', start: '2027-02-15', end: '2027-02-19', name: 'Half term' }] }
+      const s = plannerReducer({ ...base, calendars: [cal] }, { type: 'removeCalendarEvent', calendarId: 'cal1', eventId: 'e1' })
+      expect(s.calendars[0].events.map((e) => e.id)).toEqual(['e2'])
+      const same = { ...base, calendars: [cal] }
+      expect(plannerReducer(same, { type: 'removeCalendarEvent', calendarId: 'zz', eventId: 'e1' })).toBe(same)
+    })
+  })
+
+  describe('persistence', () => {
+    it('round-trips through serialisePlan and parsePlan as v8', () => {
+      const state: PlannerState = { ...withCal, calendars: [holidays, { ...holidays, id: 'cal2', visible: false, style: 'fill' }] }
+      const json = serialisePlan(state)
+      expect(JSON.parse(json).calendars).toEqual(state.calendars)
+      const parsed = parsePlan(json)
+      expect(parsed.ok && parsed.plan.calendars).toEqual(state.calendars)
+    })
+
+    it('sanitises bad calendar data', () => {
+      const v8 = (calendars: unknown) => migrateStored({ version: 8, shared: {}, people: [{ id: 'a' }], activePersonId: 'a', companies: [], calendars })!
+      expect(v8('nope').calendars).toEqual([])
+      expect(v8(undefined).calendars).toEqual([])
+      const m = v8([
+        null,
+        'x',
+        { name: 'no id' },
+        { id: '' },
+        { id: 'a', name: '  ', colour: 'bad', style: 'wavy', visible: 'yes', events: 'nope' },
+        { id: 'a', name: 'dup id' },
+        {
+          id: 'b',
+          name: 'Good',
+          colour: '#ABCDEF',
+          style: 'fill',
+          visible: false,
+          events: [
+            { id: 'z', start: '2026-05-05', end: '2026-05-06', name: 'Late' },
+            { id: 'y', start: '2026-05-01', name: 'Early' },
+            { id: 'y', start: '2026-05-02', name: 'dup' },
+            { id: 'x', start: 'bad' },
+            { id: 'w', start: '2026-05-09', end: '2026-05-08' },
+          ],
+        },
+      ])
+      expect(m.calendars).toEqual([
+        { id: 'a', name: 'Calendar 1', colour: CALENDAR_COLOURS[0], style: 'outline', visible: true, events: [] },
+        {
+          id: 'b',
+          name: 'Good',
+          colour: '#abcdef',
+          style: 'fill',
+          visible: false,
+          events: [
+            { id: 'y', start: '2026-05-01', end: '2026-05-01', name: 'Early' },
+            { id: 'z', start: '2026-05-05', end: '2026-05-06', name: 'Late' },
+          ],
+        },
+      ])
+    })
+
+    it('caps stored calendars and names', () => {
+      const many = Array.from({ length: MAX_CALENDARS + 3 }, (_, i) => ({ id: `c${i}`, name: 'n'.repeat(CALENDAR_NAME_MAX + 5) }))
+      const m = migrateStored({ version: 8, shared: {}, people: [{ id: 'a' }], activePersonId: 'a', companies: [], calendars: many })!
+      expect(m.calendars).toHaveLength(MAX_CALENDARS)
+      expect(m.calendars[0].name).toHaveLength(CALENDAR_NAME_MAX)
+      const long = migrateStored({ version: 8, shared: {}, people: [{ id: 'a' }], activePersonId: 'a', companies: [], calendars: [{ id: 'c', events: [{ id: 'e', start: '2026-01-01', name: 'n'.repeat(CALENDAR_EVENT_NAME_MAX + 9) }] }] })!
+      expect(long.calendars[0].events[0].name).toHaveLength(CALENDAR_EVENT_NAME_MAX)
+    })
+
+    it('loads v1 to v7 plans with no calendars, even if they carry the field', () => {
+      for (const version of [2, 3, 4, 6, 7]) {
+        const m = migrateStored({ version, shared: {}, people: [{ id: 'a' }], activePersonId: 'a', companies: [], calendars: [holidays] })
+        expect(m?.calendars).toEqual([])
+      }
+      const v1 = migrateStored({ version: 1, settings: {}, leave: {} })
+      expect(v1?.calendars).toEqual([])
+    })
+
+    it('still rejects newer versions', () => {
+      const r = parsePlan('{"version":9}')
+      expect(!r.ok && r.reason).toBe('newer-version')
+    })
+  })
+
+  describe('replacePlan and describePlan', () => {
+    it('replacePlan carries calendars', () => {
+      const plan = { shared: base.shared, people: base.people, activePersonId: 'p1', companies: [], calendars: [holidays] }
+      const s = plannerReducer({ ...initialState(undefined), yearOffset: 3 }, { type: 'replacePlan', plan })
+      expect(s.calendars).toEqual([holidays])
+      expect(s.yearOffset).toBe(0)
+    })
+
+    it('mentions imported calendars only when there are some', () => {
+      const none = describePlan({ ...base, calendars: [] })
+      expect(none).toBe('1 person (Alice), 0 days booked, 0 companies with 0 company days')
+      expect(describePlan({ ...base, calendars: [holidays] })).toBe(`${none}, 1 imported calendar`)
+      expect(describePlan({ ...base, calendars: [holidays, { ...holidays, id: 'c2' }] })).toBe(`${none}, 2 imported calendars`)
     })
   })
 })

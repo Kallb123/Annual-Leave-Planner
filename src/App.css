@@ -805,3 +805,9 @@
     min-height: 44px;
   }
 }
+
+/* Imported calendars in the rail: hidden ones are dimmed. */
+.rail-tile--dim .company-mark,
+.rail-tile--dim .rail-tile-title {
+  opacity: 0.5;
+}

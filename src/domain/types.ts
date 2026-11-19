@@ -177,3 +177,50 @@ export interface Company extends LeaveYearStart {
   /** Sorted by date. */
   days: CompanyDay[]
 }
+
+/** Maximum length of an imported calendar's name, after trimming. */
+export const CALENDAR_NAME_MAX = 40
+
+/** Maximum length of one imported event's name, after trimming. */
+export const CALENDAR_EVENT_NAME_MAX = 80
+
+/** Maximum number of imported calendars in one planner. */
+export const MAX_CALENDARS = 20
+
+/** Maximum number of events kept in one imported calendar. */
+export const MAX_CALENDAR_EVENTS = 1000
+
+/** Name given to an imported calendar when the file has none. */
+export const DEFAULT_CALENDAR_NAME = 'Imported calendar'
+
+/** Name given to an imported event with no summary. */
+export const DEFAULT_CALENDAR_EVENT_NAME = 'Event'
+
+/**
+ * One event from an imported calendar: a single date or an inclusive range of dates
+ * (a multi-day event such as a half-term week covers every date from `start` to `end`).
+ */
+export interface CalendarEvent {
+  id: string
+  start: IsoDate
+  /** Inclusive; equal to `start` for a one-day event. Never before `start`. */
+  end: IsoDate
+  name: string
+}
+
+/**
+ * Dates imported from an `.ics` file, such as school holidays. Shown on the calendar
+ * for information only: separate from people and companies, it never changes an allowance.
+ */
+export interface ImportedCalendar {
+  id: string
+  name: string
+  /** `#rrggbb`, lower case. */
+  colour: string
+  /** Filled cells or an outline around runs of consecutive days. */
+  style: DayStyle
+  /** Shown on the calendar and in the PNG. Hidden calendars are kept but not drawn. */
+  visible: boolean
+  /** Sorted by start date, then end date. */
+  events: CalendarEvent[]
+}

@@ -87,6 +87,35 @@ export const COMPANY_COLOUR_NAMES: Record<string, string> = {
 /** Colour given to a company when none is chosen. */
 export const DEFAULT_COMPANY_COLOUR: string = COMPANY_COLOURS[0]
 
+/**
+ * Preset colours for imported calendars (e.g. school holidays). Distinct from the
+ * person and company presets so overlays don't read as leave or company days.
+ */
+export const CALENDAR_COLOURS = [
+  '#d0742a', // tangerine
+  '#2f8f5b', // meadow
+  '#3a6fc4', // cornflower
+  '#a2489b', // orchid
+  '#9a7b1c', // ochre
+  '#56707f', // pewter
+] as const
+
+/** Accessible names for the calendar presets (custom colours fall back to their hex value). */
+export const CALENDAR_COLOUR_NAMES: Record<string, string> = {
+  '#d0742a': 'Tangerine',
+  '#2f8f5b': 'Meadow',
+  '#3a6fc4': 'Cornflower',
+  '#a2489b': 'Orchid',
+  '#9a7b1c': 'Ochre',
+  '#56707f': 'Pewter',
+}
+
+/** First calendar preset nobody is using yet, cycling through the list once all are taken. */
+export function nextCalendarColour(used: readonly string[]): string {
+  const taken = new Set(used.map((c) => c.toLowerCase()))
+  return CALENDAR_COLOURS.find((c) => !taken.has(c)) ?? CALENDAR_COLOURS[used.length % CALENDAR_COLOURS.length]
+}
+
 /** First company preset nobody is using yet, cycling through the list once all are taken. */
 export function nextCompanyColour(used: readonly string[]): string {
   const taken = new Set(used.map((c) => c.toLowerCase()))

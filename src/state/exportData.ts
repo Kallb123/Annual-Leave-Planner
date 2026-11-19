@@ -1,6 +1,6 @@
 import { summarise, type AllowanceSummary } from '../domain/allowance'
 import type { BankHolidayIndex } from '../domain/bankHolidays'
-import { buildYearView, type PersonLeaveSource, type YearView } from '../domain/calendar'
+import { buildYearView, type CalendarOverlaySource, type PersonLeaveSource, type YearView } from '../domain/calendar'
 import type { CompanyDayIndex } from '../domain/companyDays'
 import type { IsoDate } from '../domain/dates'
 import { monthsOfRange, rangeOfMonths, sameMonthSpan, type MonthSpan } from '../domain/exportRange'
@@ -47,6 +47,8 @@ export interface ExportDataInput {
   /** Company days and company shown on the calendar. */
   viewCompanyDays: CompanyDayIndex
   viewCompany: YearView['company']
+  /** Visible imported calendars, in display order. */
+  calendars?: readonly CalendarOverlaySource[]
   indexFor: (person: Pick<Person, 'companyId'>) => CompanyDayIndex
 }
 
@@ -106,6 +108,7 @@ export function buildExportData(input: ExportDataInput): ExportData {
     active.overLimit,
     sources,
     input.viewCompany,
+    input.calendars ?? [],
   )
   return {
     view,
