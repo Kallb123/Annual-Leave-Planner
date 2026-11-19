@@ -14,7 +14,10 @@ export interface Settings {
   allowanceDays: number
   /** Days carried over from the previous leave year. */
   carryOverDays: number
-  /** Month the leave year starts (1 = January). */
+  /**
+   * Month the leave year starts (1 = January). Planner-wide, this is the default for
+   * people with no company and for new companies; each company has its own.
+   */
   leaveYearStartMonth: number
   /** Day of month the leave year starts. Clamped to the month's length. */
   leaveYearStartDay: number
@@ -66,10 +69,13 @@ export const PERSON_SETTING_KEYS = [
 
 export type PersonSettingKey = (typeof PERSON_SETTING_KEYS)[number]
 
+/** When a leave year resets: a month and day. */
+export type LeaveYearStart = Pick<Settings, 'leaveYearStartMonth' | 'leaveYearStartDay'>
+
 /** Per-person part of `Settings`: allowance, carry-over, working pattern (weekly or fortnightly), bank-holiday deduction. */
 export type PersonSettings = Pick<Settings, PersonSettingKey>
 
-/** Planner-wide part of `Settings`: leave year start, region, bridge suggestions. */
+/** Planner-wide part of `Settings`: default leave year start, region, bridge suggestions. */
 export type SharedSettings = Omit<Settings, PersonSettingKey>
 
 export const DEFAULT_PERSON_SETTINGS: PersonSettings = {
@@ -161,7 +167,7 @@ export const DEFAULT_COMPANY_NAME = 'My company'
 export const DEFAULT_COMPANY_DAY_NAME = 'Company day'
 
 /** An employer, with the days it gives off. Only its own people are affected by them. */
-export interface Company {
+export interface Company extends LeaveYearStart {
   id: string
   name: string
   /** `#rrggbb`, lower case. Used for this company's days on the calendar. */

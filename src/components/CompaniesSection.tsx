@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
-import { MONTH_NAMES, parseIso } from '../domain/dates'
+import { MONTH_NAMES, daysInMonth, parseIso } from '../domain/dates'
 import { COMPANY_NAME_MAX, type Company, type CompanyDay, type Person } from '../domain/types'
 import { companyOf, type PlannerAction } from '../state/plannerState'
 import { COMPANY_COLOURS, COMPANY_COLOUR_NAMES } from '../theme'
@@ -131,6 +131,16 @@ function CompanyBlock({
     setNameDraft(null)
   }
 
+  // Leap years don't matter for picking a reset day; 2001 is a non-leap year, so cap Feb at 28.
+  const maxStartDay = daysInMonth(2001, company.leaveYearStartMonth)
+  const setStart = (month: number, day: number) =>
+    dispatch({
+      type: 'setCompanyLeaveYearStart',
+      id: company.id,
+      month,
+      day: Math.min(day, daysInMonth(2001, month)),
+    })
+
   return (
     <div className="company-block">
       <div className="company-block-head">
@@ -170,6 +180,33 @@ function CompanyBlock({
         </button>
       </div>
       <div className="company-style-fields">
+        <fieldset className="field">
+          <legend>Leave year starts on</legend>
+          <div className="drawer-year-start">
+            <select
+              aria-label={`Start day for ${company.name}`}
+              value={Math.min(company.leaveYearStartDay, maxStartDay)}
+              onChange={(e) => setStart(company.leaveYearStartMonth, Number(e.target.value))}
+            >
+              {Array.from({ length: maxStartDay }, (_, i) => i + 1).map((d) => (
+                <option key={d} value={d}>
+                  {d}
+                </option>
+              ))}
+            </select>
+            <select
+              aria-label={`Start month for ${company.name}`}
+              value={company.leaveYearStartMonth}
+              onChange={(e) => setStart(Number(e.target.value), company.leaveYearStartDay)}
+            >
+              {MONTH_NAMES.map((m, i) => (
+                <option key={m} value={i + 1}>
+                  {m}
+                </option>
+              ))}
+            </select>
+          </div>
+        </fieldset>
         <ColourField
           colours={COMPANY_COLOURS}
           names={COMPANY_COLOUR_NAMES}

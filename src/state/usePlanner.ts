@@ -1,29 +1,23 @@
 import { useCallback, useEffect, useMemo, useReducer } from 'react'
-import { overAllocatedDates, overEntitlementMessage, summarise } from '../domain/allowance'
 import { bankHolidayIndex, coversRange } from '../domain/bankHolidays'
 import { companyDayIndex, NO_COMPANY_DAYS, type CompanyDayIndex } from '../domain/companyDays'
 import { findBridges, type Bridge } from '../domain/bridges'
 import { buildYearView, type PersonLeaveSource, type YearView } from '../domain/calendar'
-import { parseIso, todayIso, type IsoDate } from '../domain/dates'
-import { leaveYearContaining, leaveYearLabel, leaveYearStartingIn } from '../domain/leaveYear'
-import type { AllowanceSummary } from '../domain/allowance'
-import type { Company, Person } from '../domain/types'
+import { todayIso } from '../domain/dates'
+import { leaveYearAtOffset, leaveYearLabel } from '../domain/leaveYear'
+import type { Company, LeaveYearStart, Person } from '../domain/types'
 import {
   activePerson as selectActivePerson,
   companyOf,
   initialState,
+  leaveYearStartFor,
   persist,
   personSettings,
   plannerReducer,
 } from './plannerState'
+import { personStatus, type PersonStatus } from './personStatus'
 
-export interface PersonStatus {
-  person: Person
-  active: boolean
-  summary: AllowanceSummary
-  overLimit: ReadonlySet<IsoDate>
-  warning: string | null
-}
+export type { PersonStatus } from './personStatus'
 
 /**
  * Single hook that owns planner state and derives everything the UI needs.
@@ -41,12 +35,6 @@ export function usePlanner() {
   }, [state])
 
   const today = todayIso()
-
-  const range = useMemo(() => {
-    const current = leaveYearContaining(today, settings)
-    const startYear = parseIso(current.start).year + yearOffset
-    return leaveYearStartingIn(startYear, settings)
-  }, [today, settings, yearOffset])
 
   const holidays = useMemo(() => bankHolidayIndex(settings.region), [settings.region])
 
@@ -74,26 +62,52 @@ export function usePlanner() {
     return c ? { name: c.name, colour: c.colour, style: c.style } : null
   }, [editingCompany, companies, activePerson])
 
+  /**
+   * The calendar shows one leave year: the company being edited's, else the active person's
+   * (their company's, or the planner default). Each person is still summarised over their own.
+   */
+  const viewStart = useMemo<LeaveYearStart>(
+    () =>
+      editingCompany
+        ? leaveYearStartFor(shared, companies, { companyId: editingCompany.id })
+        : leaveYearStartFor(shared, companies, activePerson),
+    [editingCompany, shared, companies, activePerson],
+  )
+  const { leaveYearStartMonth: viewStartMonth, leaveYearStartDay: viewStartDay } = viewStart
+  const range = useMemo(
+    () =>
+      leaveYearAtOffset(today, yearOffset, { leaveYearStartMonth: viewStartMonth, leaveYearStartDay: viewStartDay }),
+    [today, yearOffset, viewStartMonth, viewStartDay],
+  )
   const label = leaveYearLabel(range)
 
   const people = useMemo<PersonStatus[]>(
     () =>
-      peopleList.map((person) => {
-        const effective = personSettings(shared, person)
-        const companyDays = indexFor(person)
-        const summary = summarise(range, effective, person.leave, holidays, companyDays, person.tracksAllowance)
-        return {
+      peopleList.map((person) =>
+        personStatus({
           person,
           active: person.id === activePerson.id,
-          summary,
-          overLimit: overAllocatedDates(range, effective, person.leave, holidays, companyDays, person.tracksAllowance),
-          warning: overEntitlementMessage(summary.remaining, label),
-        }
-      }),
-    [peopleList, shared, activePerson.id, range, holidays, indexFor, label],
+          shared,
+          companies,
+          today,
+          yearOffset,
+          view: range,
+          holidays,
+          companyDays: indexFor(person),
+        }),
+      ),
+    [peopleList, activePerson.id, shared, companies, today, yearOffset, range, holidays, indexFor],
+  )
+
+  /** Each company's own leave year at the current offset, e.g. for counting its company days. */
+  const companyRanges = useMemo(
+    () => new Map(companies.map((c) => [c.id, leaveYearAtOffset(today, yearOffset, c)])),
+    [companies, today, yearOffset],
   )
 
   const activeStatus = people.find((p) => p.active) ?? people[0]
+  /** The active person's own leave year, which differs from `range` only while editing another company's days. */
+  const activeRange = activeStatus.range
 
   const yearView = useMemo(() => {
     const sources: PersonLeaveSource[] = people.map((p) => ({
@@ -125,9 +139,9 @@ export function usePlanner() {
   const bridges = useMemo(
     () =>
       settings.showBridgeSuggestions && activePerson.tracksAllowance
-        ? findBridges({ range, today, settings, leave, holidays, companyDays: activeCompanyDays })
+        ? findBridges({ range: activeRange, today, settings, leave, holidays, companyDays: activeCompanyDays })
         : [],
-    [range, today, settings, leave, holidays, activeCompanyDays, activePerson.tracksAllowance],
+    [activeRange, today, settings, leave, holidays, activeCompanyDays, activePerson.tracksAllowance],
   )
 
   /** The best-ranked suggestion covering each day (bridges never overlap, but be explicit). */
@@ -151,6 +165,10 @@ export function usePlanner() {
     viewCompany,
     yearView,
     summary: activeStatus.summary,
+    /** The active person's leave year label, for their summary (may differ from `label` in company-day mode). */
+    activeLabel: activeStatus.label,
+    activeRange,
+    companyRanges,
     bridges,
     bridgeByDate,
     overEntitlementWarning: activeStatus.warning,
