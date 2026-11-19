@@ -1,0 +1,127 @@
+/* Export dialog: a centred native <dialog>; a bottom sheet on phones. */
+
+.export-dialog {
+  width: 440px;
+  max-width: calc(100% - 32px);
+  margin: auto;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-card);
+  background: var(--c-background);
+  color: var(--c-text);
+  box-shadow: 0 24px 60px rgba(30, 29, 26, 0.22);
+}
+
+.export-dialog:not([open]) {
+  display: none;
+}
+
+.export-dialog::backdrop {
+  background: rgba(30, 29, 26, 0.36);
+}
+
+.export-dialog[open] {
+  animation: export-in 0.18s ease-out;
+}
+
+@keyframes export-in {
+  from {
+    transform: translateY(8px);
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .export-dialog[open] {
+    animation: none;
+  }
+}
+
+.export-sheet {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 24px 24px 20px;
+}
+
+.export-title {
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.export-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.export-row {
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr) 96px;
+  align-items: center;
+  gap: 10px;
+}
+
+.export-row-label {
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.export-summary {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  min-height: 44px;
+}
+
+.export-count,
+.export-error {
+  margin: 0;
+  font-size: 13px;
+}
+
+.export-count {
+  color: var(--c-textMuted);
+}
+
+.export-error {
+  color: var(--c-warn);
+}
+
+.export-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+@media (max-width: 600px) {
+  .export-dialog {
+    inset: auto 0 0 0;
+    width: 100%;
+    max-width: none;
+    margin: 0;
+    border-radius: var(--radius-card) var(--radius-card) 0 0;
+  }
+
+  .export-dialog[open] {
+    animation-name: export-sheet-in;
+  }
+
+  .export-sheet {
+    padding-bottom: max(20px, env(safe-area-inset-bottom));
+  }
+
+  .export-actions .btn {
+    flex: 1;
+  }
+}
+
+@keyframes export-sheet-in {
+  from {
+    transform: translateY(32px);
+    opacity: 0;
+  }
+}

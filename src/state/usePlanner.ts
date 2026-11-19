@@ -16,8 +16,11 @@ import {
   plannerReducer,
 } from './plannerState'
 import { personStatus, type PersonStatus } from './personStatus'
+import { buildExportData, type ExportData } from './exportData'
+import type { MonthSpan } from '../domain/exportRange'
 
 export type { PersonStatus } from './personStatus'
+export type { ExportData, ExportPersonData } from './exportData'
 
 /**
  * Single hook that owns planner state and derives everything the UI needs.
@@ -135,6 +138,27 @@ export function usePlanner() {
     )
   }, [people, shared, range, settings, leave, holidays, viewCompanyDays, today, activeStatus, indexFor, viewCompany])
 
+  /** What the PNG export draws for a month span: the viewed leave year as-is, or a custom range. */
+  const exportFor = useCallback(
+    (span: MonthSpan): ExportData =>
+      buildExportData({
+        span,
+        range,
+        label,
+        yearView,
+        people,
+        shared,
+        companies,
+        today,
+        yearOffset,
+        holidays,
+        viewCompanyDays,
+        viewCompany,
+        indexFor,
+      }),
+    [range, label, yearView, people, shared, companies, today, yearOffset, holidays, viewCompanyDays, viewCompany, indexFor],
+  )
+
   // Suggestions are computed from the active person's plan and never touch the PNG.
   const bridges = useMemo(
     () =>
@@ -164,6 +188,7 @@ export function usePlanner() {
     editingCompanyIndex,
     viewCompany,
     yearView,
+    exportFor,
     summary: activeStatus.summary,
     /** The active person's leave year label, for their summary (may differ from `label` in company-day mode). */
     activeLabel: activeStatus.label,
