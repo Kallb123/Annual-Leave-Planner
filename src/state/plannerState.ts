@@ -1,4 +1,4 @@
-import { isBookable } from '../domain/allowance'
+import { isMarkable } from '../domain/allowance'
 import { bankHolidayIndex } from '../domain/bankHolidays'
 import { companyDayIndex, NO_COMPANY_DAYS, sanitiseCompanyDays, type CompanyDayIndex } from '../domain/companyDays'
 import { eachDay, isIsoDate } from '../domain/dates'
@@ -14,7 +14,9 @@ import {
   PERSON_NAME_MAX,
   PERSON_SETTING_KEYS,
   REGIONS,
+    DAY_STYLES,
   type Company,
+  type DayStyle,
   type LeaveEntries,
   type LeavePortion,
   type Person,
@@ -22,7 +24,7 @@ import {
   type Settings,
   type SharedSettings,
 } from '../domain/types'
-import { PERSON_COLOURS, isHexColour, nextPersonColour } from '../theme'
+import { DEFAULT_COMPANY_COLOUR, PERSON_COLOURS, isHexColour, nextCompanyColour, nextPersonColour } from '../theme'
 
 /**
  * Everything the user has entered. This is the only state that is persisted;
@@ -52,10 +54,14 @@ export type PlannerAction =
   | { type: 'removePerson'; id: string }
   | { type: 'renamePerson'; id: string; name: string }
   | { type: 'setPersonColour'; id: string; colour: string }
+  | { type: 'setPersonStyle'; id: string; style: DayStyle }
+  | { type: 'setPersonTracksAllowance'; id: string; tracksAllowance: boolean }
   | { type: 'selectPerson'; id: string }
   | { type: 'addCompany'; id: string; name: string }
   | { type: 'renameCompany'; id: string; name: string }
   | { type: 'removeCompany'; id: string }
+  | { type: 'setCompanyColour'; id: string; colour: string }
+  | { type: 'setCompanyStyle'; id: string; style: DayStyle }
   | { type: 'selectCompany'; id: string }
   | { type: 'stopEditingCompany' }
   | { type: 'setPersonCompany'; personId: string; companyId: string | null }
@@ -143,10 +149,12 @@ function updatePerson(state: PlannerState, id: string, change: (p: Person) => Pe
   return { ...state, people: state.people.map((p) => (p.id === id ? change(p) : p)) }
 }
 
-/** Click cycle for a bookable day: none → full → half → none. */
-export function nextPortion(current: LeavePortion | undefined): LeavePortion | undefined {
+const isDayStyle = (value: unknown): value is DayStyle => DAY_STYLES.some((s) => s.id === value)
+
+/** Click cycle for a markable day: none → full → half → none, or none → full → none without half days. */
+export function nextPortion(current: LeavePortion | undefined, allowHalf = true): LeavePortion | undefined {
   if (current === undefined) return 'full'
-  if (current === 'full') return 'half'
+  if (current === 'full' && allowHalf) return 'half'
   return undefined
 }
 
@@ -160,7 +168,7 @@ export function plannerReducer(state: PlannerState, action: PlannerAction): Plan
     case 'cycleLeave':
       return updateActive(state, (p) => {
         const leave = { ...p.leave }
-        const next = nextPortion(leave[action.date])
+        const next = nextPortion(leave[action.date], p.tracksAllowance)
         if (next) leave[action.date] = next
         else delete leave[action.date]
         return { ...p, leave }
@@ -176,7 +184,7 @@ export function plannerReducer(state: PlannerState, action: PlannerAction): Plan
         const settings = personSettings(state.shared, p)
         const leave = { ...p.leave }
         for (const date of eachDay(from, to)) {
-          if (!isBookable(date, settings, holidays, companyDays)) continue
+          if (!isMarkable(date, settings, holidays, companyDays, p.tracksAllowance)) continue
           if (action.portion) leave[date] = action.portion
           else delete leave[date]
         }
@@ -194,7 +202,16 @@ export function plannerReducer(state: PlannerState, action: PlannerAction): Plan
       const colour = isHexColour(action.colour)
         ? action.colour.toLowerCase()
         : nextPersonColour(state.people.map((p) => p.colour))
-      const person: Person = { ...DEFAULT_PERSON_SETTINGS, id: action.id, name, colour, leave: {}, companyId: null }
+      const person: Person = {
+        ...DEFAULT_PERSON_SETTINGS,
+        id: action.id,
+        name,
+        colour,
+        style: 'fill',
+        tracksAllowance: true,
+        leave: {},
+        companyId: null,
+      }
       return { ...state, people: [...state.people, person], activePersonId: person.id, editingCompanyId: null }
     }
     case 'removePerson': {
@@ -214,6 +231,12 @@ export function plannerReducer(state: PlannerState, action: PlannerAction): Plan
       const colour = action.colour.toLowerCase()
       return updatePerson(state, action.id, (p) => ({ ...p, colour }))
     }
+    case 'setPersonStyle':
+      return isDayStyle(action.style) ? updatePerson(state, action.id, (p) => ({ ...p, style: action.style })) : state
+    case 'setPersonTracksAllowance':
+      return typeof action.tracksAllowance === 'boolean'
+        ? updatePerson(state, action.id, (p) => ({ ...p, tracksAllowance: action.tracksAllowance }))
+        : state
     case 'selectPerson':
       return state.people.some((p) => p.id === action.id)
         ? { ...state, activePersonId: action.id, editingCompanyId: null }
@@ -227,7 +250,16 @@ export function plannerReducer(state: PlannerState, action: PlannerAction): Plan
       const adopt = companyOf(state.companies, active) === undefined
       return {
         ...state,
-        companies: [...state.companies, { id: action.id, name, days: [] }],
+        companies: [
+          ...state.companies,
+          {
+            id: action.id,
+            name,
+            colour: nextCompanyColour(state.companies.map((c) => c.colour)),
+            style: 'fill',
+            days: [],
+          },
+        ],
         editingCompanyId: action.id,
         people: adopt
           ? state.people.map((p) => (p.id === active.id ? { ...p, companyId: action.id } : p))
@@ -246,6 +278,13 @@ export function plannerReducer(state: PlannerState, action: PlannerAction): Plan
         people: state.people.map((p) => (p.companyId === action.id ? { ...p, companyId: null } : p)),
         editingCompanyId: state.editingCompanyId === action.id ? null : state.editingCompanyId,
       }
+    case 'setCompanyColour': {
+      if (!isHexColour(action.colour)) return state
+      const colour = action.colour.toLowerCase()
+      return updateCompany(state, action.id, (c) => ({ ...c, colour }))
+    }
+    case 'setCompanyStyle':
+      return isDayStyle(action.style) ? updateCompany(state, action.id, (c) => ({ ...c, style: action.style })) : state
     case 'selectCompany':
       return state.companies.some((c) => c.id === action.id) ? { ...state, editingCompanyId: action.id } : state
     case 'stopEditingCompany':
@@ -297,7 +336,7 @@ export function plannerReducer(state: PlannerState, action: PlannerAction): Plan
 // ---------------------------------------------------------------------------
 
 export const STORAGE_KEY = 'annual-leave-planner'
-const SCHEMA_VERSION = 5
+const SCHEMA_VERSION = 6
 
 /** Id given to the person created from v1/v2 data or on first visit. */
 const DEFAULT_PERSON_ID = 'person-1'
@@ -315,16 +354,18 @@ const DEFAULT_COMPANY_ID = 'company-1'
  *   `{ version, shared, people, activePersonId, companies }`
  * - v5: per-person fortnightly working pattern: `workingDaysWeek2`, `fortnightStart`
  *   (same envelope as v4; missing fields default on load)
+ * - v6: day styles: `style` and `tracksAllowance` on each person, `colour` and `style` on each company
+ *   (same envelope; missing fields default on load, so older plans look exactly as before)
  */
-interface StoredStateV5 {
-  version: 5
+interface StoredStateV6 {
+  version: 6
   shared: SharedSettings
   people: Person[]
   activePersonId: string
   companies: Company[]
 }
 
-export type StoredContent = Omit<StoredStateV5, 'version'>
+export type StoredContent = Omit<StoredStateV6, 'version'>
 
 function defaultPerson(): Person {
   return {
@@ -332,6 +373,8 @@ function defaultPerson(): Person {
     id: DEFAULT_PERSON_ID,
     name: DEFAULT_PERSON_NAME,
     colour: PERSON_COLOURS[0],
+    style: 'fill',
+    tracksAllowance: true,
     leave: {},
     companyId: null,
   }
@@ -344,7 +387,7 @@ export function initialState(storage: Storage | undefined = safeLocalStorage()):
     shared: splitSettings(DEFAULT_SETTINGS).shared,
     people: [{ ...defaultPerson(), companyId: DEFAULT_COMPANY_ID }],
     activePersonId: DEFAULT_PERSON_ID,
-    companies: [{ id: DEFAULT_COMPANY_ID, name: DEFAULT_COMPANY_NAME, days: [] }],
+    companies: [legacyCompany([])],
     editingCompanyId: null,
     yearOffset: 0,
   }
@@ -360,7 +403,7 @@ export function hasSavedState(storage: Storage | undefined = safeLocalStorage())
 
 /** The versioned JSON envelope that is both stored and exported: exactly what `parsePlan` reads back. */
 export function serialisePlan(state: PlannerState): string {
-  const payload: StoredStateV5 = {
+  const payload: StoredStateV6 = {
     version: SCHEMA_VERSION,
     shared: state.shared,
     people: state.people,
@@ -446,7 +489,7 @@ export function migrateStored(parsed: unknown): StoredContent | null {
       companies: [legacyCompany(p.version === 1 ? [] : p.companyDays)],
     }
   }
-  if (p.version !== 3 && p.version !== 4 && p.version !== 5) return null
+  if (p.version !== 3 && p.version !== 4 && p.version !== 5 && p.version !== 6) return null
   const shared = splitSettings(
     sanitiseSettings({ ...DEFAULT_SETTINGS, ...(asObject(p.shared) as Partial<Settings>) }),
   ).shared
@@ -476,7 +519,13 @@ export function migrateStored(parsed: unknown): StoredContent | null {
 
 /** The single company that v1-v3 company days migrate into. */
 function legacyCompany(days: unknown): Company {
-  return { id: DEFAULT_COMPANY_ID, name: DEFAULT_COMPANY_NAME, days: sanitiseCompanyDays(days) }
+  return {
+    id: DEFAULT_COMPANY_ID,
+    name: DEFAULT_COMPANY_NAME,
+    colour: DEFAULT_COMPANY_COLOUR,
+    style: 'fill',
+    days: sanitiseCompanyDays(days),
+  }
 }
 
 function sanitiseCompanies(value: unknown): Company[] {
@@ -491,6 +540,8 @@ function sanitiseCompanies(value: unknown): Company[] {
     companies.push({
       id: r.id,
       name: cleanCompanyName(r.name) || `Company ${companies.length + 1}`,
+      colour: isHexColour(r.colour) ? r.colour.toLowerCase() : DEFAULT_COMPANY_COLOUR,
+      style: isDayStyle(r.style) ? r.style : 'fill',
       days: sanitiseCompanyDays(r.days),
     })
   }
@@ -514,6 +565,8 @@ function sanitisePeople(value: unknown): Person[] {
       id: r.id,
       name: cleanName(r.name) || (index === 0 ? DEFAULT_PERSON_NAME : `Person ${index + 1}`),
       colour: isHexColour(r.colour) ? r.colour.toLowerCase() : nextPersonColour(people.map((x) => x.colour)),
+      style: isDayStyle(r.style) ? r.style : 'fill',
+      tracksAllowance: typeof r.tracksAllowance === 'boolean' ? r.tracksAllowance : true,
       leave: sanitiseLeave(r.leave),
       companyId: typeof r.companyId === 'string' ? r.companyId : null,
     })

@@ -1,6 +1,7 @@
-import { useEffect, useId, useRef, useState, type FormEvent, type KeyboardEvent, type MouseEvent } from 'react'
+import { useEffect, useId, useRef, useState, type CSSProperties, type FormEvent, type KeyboardEvent, type MouseEvent } from 'react'
 import { CompaniesSection } from './CompaniesSection'
 import { DayCountInput } from './DayCountInput'
+import { StyleField } from './StyleControls'
 import { newId } from './newId'
 import { formatBridgeDates } from '../domain/bridges'
 import { MONTH_NAMES, daysInMonth, todayIso } from '../domain/dates'
@@ -209,7 +210,7 @@ function PeopleTab({ settings, activePerson, people, companies, range, label, di
         <h2 id="drawer-person-h" className="section-label">
           Person
         </h2>
-        <div className="drawer-grid-2">
+        <div className={activePerson.tracksAllowance ? 'drawer-grid-2' : undefined}>
           <label className="field">
             <span>Name</span>
             <input
@@ -230,6 +231,7 @@ function PeopleTab({ settings, activePerson, people, companies, range, label, di
               }}
             />
           </label>
+          {activePerson.tracksAllowance && (
           <label className="field">
             <span>Company</span>
             <select
@@ -244,7 +246,32 @@ function PeopleTab({ settings, activePerson, people, companies, range, label, di
               ))}
             </select>
           </label>
+          )}
         </div>
+        <fieldset className="field">
+          <legend id="drawer-type-l">Type</legend>
+          <div className="segmented" role="group" aria-labelledby="drawer-type-l">
+            {[
+              { value: true, label: 'Takes leave' },
+              { value: false, label: 'Marks dates' },
+            ].map((o) => (
+              <button
+                key={o.label}
+                type="button"
+                aria-pressed={activePerson.tracksAllowance === o.value}
+                onClick={() =>
+                  activePerson.tracksAllowance === o.value ||
+                  dispatch({ type: 'setPersonTracksAllowance', id: activePerson.id, tracksAllowance: o.value })
+                }
+              >
+                {o.label}
+              </button>
+            ))}
+          </div>
+          <span className="hint">
+            Marks dates suits school holidays or other days someone needs to cover: any day can be marked and there’s no allowance.
+          </span>
+        </fieldset>
         <fieldset className="field">
           <legend>Colour</legend>
           <div className="colour-swatches">
@@ -281,8 +308,16 @@ function PeopleTab({ settings, activePerson, people, companies, range, label, di
             />
           </div>
         </fieldset>
+        <StyleField
+          legend="Style"
+          colour={colour}
+          value={activePerson.style}
+          hint="Outline draws a border around runs of days instead of filling them."
+          onChange={(style) => dispatch({ type: 'setPersonStyle', id: activePerson.id, style })}
+        />
       </section>
 
+      {activePerson.tracksAllowance && (
       <section className="drawer-section drawer-divided" aria-labelledby="drawer-allowance-h">
         <h2 id="drawer-allowance-h" className="section-label">
           {name}’s allowance
@@ -304,30 +339,31 @@ function PeopleTab({ settings, activePerson, people, companies, range, label, di
           onChange={(bankHolidaysDeducted) => update({ bankHolidaysDeducted })}
         />
       </section>
+      )}
 
       <section className="drawer-section drawer-divided drawer-danger" aria-label="Clear or remove">
         <button
           type="button"
           className="btn btn-ghost drawer-danger-btn"
           onClick={() => {
-            if (confirm(`Clear all of ${name}’s leave in ${label}?`)) {
+            if (confirm(`Clear all of ${name}’s ${activePerson.tracksAllowance ? 'leave' : 'dates'} in ${label}?`)) {
               dispatch({ type: 'clearLeaveInRange', start: range.start, end: range.end })
             }
           }}
         >
-          Clear {name}’s leave in {label}
+          Clear {name}’s {activePerson.tracksAllowance ? 'leave' : 'dates'} in {label}
         </button>
         {people.length > 1 && (
           <button
             type="button"
             className="btn btn-danger drawer-danger-btn"
             onClick={() => {
-              if (confirm(`Remove ${name} and all of their leave?`)) {
+              if (confirm(`Remove ${name} and all of their ${activePerson.tracksAllowance ? 'leave' : 'dates'}?`)) {
                 dispatch({ type: 'removePerson', id: activePerson.id })
               }
             }}
           >
-            Remove {name} and their leave
+            Remove {name} and their {activePerson.tracksAllowance ? 'leave' : 'dates'}
           </button>
         )}
       </section>
@@ -375,7 +411,11 @@ function PersonChooser({ people, dispatch }: { people: PersonStatus[]; dispatch:
           aria-pressed={active}
           onClick={() => dispatch({ type: 'selectPerson', id: person.id })}
         >
-          <span className="chip-dot" style={{ background: person.colour }} aria-hidden="true" />
+          <span
+            className={`chip-dot${person.style === 'outline' ? ' chip-dot--outline' : ''}`}
+            style={{ '--dot-colour': person.colour } as CSSProperties}
+            aria-hidden="true"
+          />
           {person.name}
         </button>
       ))}

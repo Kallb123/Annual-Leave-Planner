@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { classifyDay, formatDays, overAllocatedDates, overEntitlementMessage, summarise } from './allowance'
+import { classifyDay, formatDays, isMarkable, overAllocatedDates, overEntitlementMessage, summarise } from './allowance'
 import { companyDayIndex, NO_COMPANY_DAYS } from './companyDays'
-import { DEFAULT_SETTINGS, type CompanyDay, type Settings } from './types'
+import { DEFAULT_SETTINGS, type CompanyDay, type LeaveEntries, type Settings } from './types'
 
 const holidays = new Map([
   ['2026-12-25', 'Christmas Day'], // Friday
@@ -270,5 +270,42 @@ describe('company days', () => {
       const leave = { '2026-11-02': 'full', '2026-11-03': 'full' } as const
       expect([...overAllocatedDates(range, tight, leave, holidays, cd)]).toEqual([])
     })
+  })
+})
+
+describe('isMarkable', () => {
+  it('only allows bookable days when tracking an allowance', () => {
+    expect(isMarkable('2026-11-18', settings, holidays, NO_COMPANY_DAYS, true)).toBe(true)
+    expect(isMarkable('2026-11-21', settings, holidays, NO_COMPANY_DAYS, true)).toBe(false) // Saturday
+    expect(isMarkable('2026-12-25', settings, holidays, NO_COMPANY_DAYS, true)).toBe(false)
+  })
+  it('allows any day without an allowance', () => {
+    expect(isMarkable('2026-11-21', settings, holidays, NO_COMPANY_DAYS, false)).toBe(true)
+    expect(isMarkable('2026-12-25', settings, holidays, NO_COMPANY_DAYS, false)).toBe(true)
+  })
+})
+
+describe('without an allowance', () => {
+  const leave = { '2026-11-18': 'full', '2026-11-21': 'full', '2026-12-25': 'half', '2027-01-04': 'full' } as const
+  const deducting: Settings = { ...settings, bankHolidaysDeducted: true }
+
+  it('summarise counts every marked day in range and has no entitlement', () => {
+    expect(summarise(range, deducting, leave, holidays, NO_COMPANY_DAYS, false)).toEqual({
+      entitlement: 0,
+      booked: 2.5,
+      bankHolidaysDeducted: 0,
+      companyDaysDeducted: 0,
+      remaining: 0,
+    })
+  })
+  it('overAllocatedDates is empty', () => {
+    const many: LeaveEntries = Object.fromEntries(Array.from({ length: 30 }, (_, i) => [`2026-03-${String(i + 1).padStart(2, '0')}`, 'full' as const]))
+    expect(overAllocatedDates(range, { ...settings, allowanceDays: 1 }, many, holidays, NO_COMPANY_DAYS, false).size).toBe(0)
+  })
+  it('behaves as before when tracking (default)', () => {
+    expect(summarise(range, settings, leave, holidays, NO_COMPANY_DAYS)).toEqual(
+      summarise(range, settings, leave, holidays, NO_COMPANY_DAYS, true),
+    )
+    expect(summarise(range, settings, leave, holidays, NO_COMPANY_DAYS).booked).toBe(1)
   })
 })

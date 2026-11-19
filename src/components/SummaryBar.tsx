@@ -1,5 +1,6 @@
 import type { AllowanceSummary } from '../domain/allowance'
 import { AlertIcon } from './Icons'
+import { companyDayColours } from '../theme'
 import { share } from './format'
 
 const fmt = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(1))
@@ -14,12 +15,17 @@ interface Props {
   carryOverDays: number
   /** Over-entitlement message, or null when within entitlement. */
   warning?: string | null
+  /** False for someone who just marks dates: show a count of days marked instead of an allowance. */
+  tracksAllowance: boolean
+  /** Colour of the person's company, for its days in the breakdown, or null for the default. */
+  companyColour: string | null
   /** Phones: a smaller card with the figures on one line. */
   compact?: boolean
 }
 
 /** The active person's allowance: a big "days left" figure, a usage bar and the breakdown. */
-export function SummaryBar({ summary, name, colour, label, allowanceDays, carryOverDays, warning = null, compact = false }: Props) {
+export function SummaryBar({ summary, name, colour, label, allowanceDays, carryOverDays, tracksAllowance, companyColour, warning = null, compact = false }: Props) {
+  const companyMark = companyColour ? companyDayColours(companyColour).mark : 'var(--c-companyDayMark)'
   const negative = summary.remaining < 0
   const stats = [
     {
@@ -32,10 +38,30 @@ export function SummaryBar({ summary, name, colour, label, allowanceDays, carryO
       ? [{ label: 'Bank holidays', value: summary.bankHolidaysDeducted, swatch: 'var(--bar-bank-holiday)' }]
       : []),
     ...(summary.companyDaysDeducted
-      ? [{ label: 'Company days', value: summary.companyDaysDeducted, swatch: 'var(--c-companyDayMark)' }]
+      ? [{ label: 'Company days', value: summary.companyDaysDeducted, swatch: companyMark }]
       : []),
     { label: 'Remaining', value: summary.remaining, swatch: 'var(--c-track)', warn: negative },
   ]
+
+  if (!tracksAllowance) {
+    const n = summary.booked
+    return (
+      <section className={`card summary-card${compact ? ' summary-card--compact' : ''}`} aria-label={`${name}’s marked dates`} aria-live="polite">
+        <div className="summary-main">
+          {!compact && (
+            <span className="summary-who">
+              <span className="summary-dot" style={{ background: colour }} aria-hidden="true" />
+              {name} · {label}
+            </span>
+          )}
+          <span className="summary-left">
+            <span className="summary-number num">{fmt(n)}</span>
+            <span className="summary-unit">{n === 1 ? 'day marked' : 'days marked'}</span>
+          </span>
+        </div>
+      </section>
+    )
+  }
 
   // One persistent live region wraps both the figures and the warning, so a
   // change is announced once and the warning's insertion is reliably spoken.
@@ -58,7 +84,7 @@ export function SummaryBar({ summary, name, colour, label, allowanceDays, carryO
         <div className="usage-bar usage-bar--large" aria-hidden="true">
           <span style={{ width: share(summary.booked, summary.entitlement), background: colour }} />
           <span style={{ width: share(summary.bankHolidaysDeducted, summary.entitlement), background: 'var(--bar-bank-holiday)' }} />
-          <span style={{ width: share(summary.companyDaysDeducted, summary.entitlement), background: 'var(--c-companyDayMark)' }} />
+          <span style={{ width: share(summary.companyDaysDeducted, summary.entitlement), background: companyMark }} />
         </div>
         <dl className="summary-stats">
           {stats

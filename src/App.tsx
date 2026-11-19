@@ -15,12 +15,20 @@ import { REGIONS, type LeavePortion } from './domain/types'
 import { downloadCanvasAsPng, downloadJson } from './export/download'
 import { loadExportFonts, renderYearToCanvas } from './export/renderPng'
 import { useMediaQuery } from './hooks/useMediaQuery'
+import { companyDayColours } from './theme'
 import { companyOf, describePlan, parsePlan, serialisePlan } from './state/plannerState'
 import { usePlanner } from './state/usePlanner'
 import './App.css'
 
+/** Company tones for the mode pill, hint bar and usage bar (CSS falls back to the default palette). */
+function companyVars(colour: string | undefined): CSSProperties {
+  if (!colour) return {}
+  const { fill, text, mark } = companyDayColours(colour)
+  return { '--company-fill': fill, '--company-text': text, '--company-mark': mark } as CSSProperties
+}
+
 export default function App() {
-  const { state, dispatch, range, label, settings, activePerson, people, companies, editingCompany, editingCompanyIndex, yearView, summary, bridges, bridgeByDate, overEntitlementWarning, hasBankHolidayData } = usePlanner()
+  const { state, dispatch, range, label, settings, activePerson, people, companies, editingCompany, editingCompanyIndex, viewCompany, yearView, summary, bridges, bridgeByDate, overEntitlementWarning, hasBankHolidayData } = usePlanner()
   // Same breakpoint as the phone layout in App.css.
   const phone = useMediaQuery('(max-width: 600px)')
   const [exporting, setExporting] = useState(false)
@@ -72,6 +80,8 @@ export default function App() {
         people: people.map((p) => ({
           name: p.person.name,
           colour: p.person.colour,
+          style: p.person.style,
+          tracksAllowance: p.person.tracksAllowance,
           summary: p.summary,
           warning: p.warning ?? undefined,
         })),
@@ -99,15 +109,23 @@ export default function App() {
     }
   }
 
-  const leaveHint = phone
-    ? 'Tap: full, half, clear. Swipe for a range.'
-    : 'Click a working day for a full day, again for half, again to clear. Shift-click or drag for a range.'
+  const marksDates = !activePerson.tracksAllowance
+  const leaveHint = marksDates
+    ? phone
+      ? 'Tap a day to mark or clear it. Swipe for a range.'
+      : 'Click any day to mark it, again to clear. Shift-click or drag for a range.'
+    : phone
+      ? 'Tap: full, half, clear. Swipe for a range.'
+      : 'Click a working day for a full day, again for half, again to clear. Shift-click or drag for a range.'
+  const modeVerb = marksDates ? 'Marking dates for' : 'Booking for'
+  // Tone of the company mark in the mode pill and hint bar: the company being edited, else the person's.
+  const markColour = (editingCompany ?? companyOf(companies, activePerson))?.colour
   const companyHint = phone
     ? 'Tap a day to add, change or delete.'
     : `Click a day to add, change or delete a company day; it applies to everyone at ${editingCompany?.name ?? 'this company'}. Drag or shift-click for a range.`
 
   return (
-    <div className={`app${phone ? ' app--phone' : ''}`} style={{ '--person-colour': activePerson.colour } as CSSProperties}>
+    <div className={`app${phone ? ' app--phone' : ''}`} style={{ '--person-colour': activePerson.colour, ...companyVars(markColour) } as CSSProperties}>
       <header className="app-header">
         <div className="brand">
           <LogoMark />
@@ -184,6 +202,8 @@ export default function App() {
             carryOverDays={settings.carryOverDays}
             warning={overEntitlementWarning}
             compact={phone}
+            tracksAllowance={activePerson.tracksAllowance}
+            companyColour={companyOf(companies, activePerson)?.colour ?? null}
           />
 
           {phone && <BridgeSuggestions bridges={shownBridges} name={activePerson.name} onBook={bookBridge} compact />}
@@ -216,7 +236,7 @@ export default function App() {
                   <div className="mode-strip-text">
                     <span className="mode-pill">
                       <span className="mode-pill-dot" aria-hidden="true" />
-                      Booking for {activePerson.name}
+                      {modeVerb} {activePerson.name}
                     </span>
                     <span className="mode-strip-hint">{leaveHint}</span>
                   </div>
@@ -226,7 +246,8 @@ export default function App() {
 
             <YearCalendar
               view={yearView}
-              activeColour={companyMode ? 'var(--c-companyDayMark)' : activePerson.colour}
+              activeColour={editingCompany ? editingCompany.colour : activePerson.colour}
+              allowHalfDays={activePerson.tracksAllowance}
               bridgeByDate={companyMode ? undefined : bridgeByDate}
               onToggleDay={toggleDay}
               onSetRange={setRange}
@@ -235,7 +256,12 @@ export default function App() {
               onAssignCompanyDays={assignCompanyDays}
               onRemoveCompanyDays={removeCompanyDays}
             />
-            <Legend people={people.map((p) => ({ id: p.person.id, name: p.person.name, colour: p.person.colour }))} activeColour={activePerson.colour} showBridge={!companyMode && bridges.length > 0} />
+            <Legend
+              people={people.map((p) => ({ id: p.person.id, name: p.person.name, colour: p.person.colour, style: p.person.style }))}
+              activeColour={activePerson.colour}
+              showBridge={!companyMode && bridges.length > 0}
+              company={viewCompany}
+            />
           </section>
 
           <footer className="app-footer">Saved in this browser only · Version {__APP_VERSION__}</footer>
@@ -246,7 +272,7 @@ export default function App() {
         <div className="hint-bar">
           <span className={`hint-bar-mark${companyMode ? ' hint-bar-mark--company' : ''}`} aria-hidden="true" />
           <span>
-            <strong>{companyMode ? `Editing ${editingCompany.name} days` : `Booking for ${activePerson.name}`}</strong> · {companyMode ? companyHint : leaveHint}
+            <strong>{companyMode ? `Editing ${editingCompany.name} days` : `${modeVerb} ${activePerson.name}`}</strong> · {companyMode ? companyHint : leaveHint}
           </span>
         </div>
       )}

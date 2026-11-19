@@ -12,7 +12,7 @@ import {
   type Person,
   type Settings,
 } from '../domain/types'
-import { PERSON_COLOURS } from '../theme'
+import { COMPANY_COLOURS, DEFAULT_COMPANY_COLOUR, PERSON_COLOURS } from '../theme'
 import {
   STORAGE_KEY,
   MAX_COMPANIES,
@@ -21,6 +21,7 @@ import {
   companyOf,
   hasSavedState,
   initialState,
+  nextPortion,
   describePlan,
   migrateStored,
   parsePlan,
@@ -56,7 +57,7 @@ class MemoryStorage implements Storage {
 
 const DEFAULT_SHARED = splitForTest(DEFAULT_SETTINGS).shared
 
-const alice: Person = { ...DEFAULT_PERSON_SETTINGS, id: 'p1', name: 'Alice', colour: PERSON_COLOURS[0], leave: {}, companyId: null }
+const alice: Person = { ...DEFAULT_PERSON_SETTINGS, id: 'p1', name: 'Alice', colour: PERSON_COLOURS[0], style: 'fill', tracksAllowance: true, leave: {}, companyId: null }
 
 const base: PlannerState = {
   shared: DEFAULT_SHARED,
@@ -75,7 +76,7 @@ function single(opts: { leave?: LeaveEntries; settings?: Partial<Settings>; comp
     ...base,
     shared,
     people: [{ ...alice, ...person, leave: opts.leave ?? {}, companyId: opts.companyDays ? 'co1' : null }],
-    companies: opts.companyDays ? [{ id: 'co1', name: 'Acme', days: opts.companyDays }] : [],
+    companies: opts.companyDays ? [{ id: 'co1', name: 'Acme', colour: '#6f5bb8', style: 'fill', days: opts.companyDays }] : [],
   }
 }
 
@@ -172,8 +173,8 @@ describe('plannerReducer', () => {
       const two: PlannerState = {
         ...twoPeople,
         companies: [
-          { id: 'co1', name: 'Acme', days: [closure] },
-          { id: 'co2', name: 'Beta', days: [] },
+          { id: 'co1', name: 'Acme', colour: '#6f5bb8', style: 'fill', days: [closure] },
+          { id: 'co2', name: 'Beta', colour: '#6f5bb8', style: 'fill', days: [] },
         ],
         people: [
           { ...alice, companyId: 'co1' },
@@ -235,14 +236,14 @@ describe('plannerReducer', () => {
   describe('companies', () => {
     const withCo: PlannerState = {
       ...twoPeople,
-      companies: [{ id: 'co1', name: 'Acme', days: [] }],
+      companies: [{ id: 'co1', name: 'Acme', colour: '#6f5bb8', style: 'fill', days: [] }],
       people: [{ ...alice, companyId: 'co1' }, { ...twoPeople.people[1], companyId: 'co1' }],
     }
     const daysOf = (st: PlannerState, id = 'co1') => st.companies.find((c) => c.id === id)!.days
 
     it('adds a company, starts editing it and adopts it for a person with none', () => {
       const s = plannerReducer(base, { type: 'addCompany', id: 'co1', name: '  Acme  ' })
-      expect(s.companies).toEqual([{ id: 'co1', name: 'Acme', days: [] }])
+      expect(s.companies).toEqual([{ id: 'co1', name: 'Acme', colour: '#6f5bb8', style: 'fill', days: [] }])
       expect(s.editingCompanyId).toBe('co1')
       expect(s.people[0].companyId).toBe('co1')
     })
@@ -266,7 +267,7 @@ describe('plannerReducer', () => {
       expect(plannerReducer(withCo, { type: 'addCompany', id: 'co1', name: 'Again' })).toBe(withCo)
       const full: PlannerState = {
         ...base,
-        companies: Array.from({ length: MAX_COMPANIES }, (_, i) => ({ id: `c${i}`, name: `C${i}`, days: [] })),
+        companies: Array.from({ length: MAX_COMPANIES }, (_, i) => ({ id: `c${i}`, name: `C${i}`, colour: '#6f5bb8', style: 'fill', days: [] })),
       }
       expect(plannerReducer(full, { type: 'addCompany', id: 'extra', name: 'Extra' })).toBe(full)
     })
@@ -293,7 +294,7 @@ describe('plannerReducer', () => {
     it('keeps edit mode on another company when one is removed', () => {
       const two: PlannerState = {
         ...withCo,
-        companies: [...withCo.companies, { id: 'co2', name: 'Beta', days: [] }],
+        companies: [...withCo.companies, { id: 'co2', name: 'Beta', colour: '#6f5bb8', style: 'fill', days: [] }],
         editingCompanyId: 'co2',
       }
       expect(plannerReducer(two, { type: 'removeCompany', id: 'co1' }).editingCompanyId).toBe('co2')
@@ -365,7 +366,7 @@ describe('plannerReducer', () => {
     })
 
     it('selectors resolve a person company', () => {
-      const cs: Company[] = [{ id: 'co1', name: 'Acme', days: [closure] }]
+      const cs: Company[] = [{ id: 'co1', name: 'Acme', colour: '#6f5bb8', style: 'fill', days: [closure] }]
       expect(companyOf(cs, { companyId: 'co1' })).toBe(cs[0])
       expect(companyOf(cs, { companyId: null })).toBeUndefined()
       expect(companyOf(cs, { companyId: 'gone' })).toBeUndefined()
@@ -428,12 +429,12 @@ describe('plannerReducer', () => {
     it('appends, trims, gives defaults and makes the person active', () => {
       const s = plannerReducer(base, { type: 'addPerson', id: 'p2', name: '  Bob  ', colour: '#ABCDEF' })
       expect(s.people).toHaveLength(2)
-      expect(s.people[1]).toEqual({ ...DEFAULT_PERSON_SETTINGS, id: 'p2', name: 'Bob', colour: '#abcdef', leave: {}, companyId: null })
+      expect(s.people[1]).toEqual({ ...DEFAULT_PERSON_SETTINGS, id: 'p2', name: 'Bob', colour: '#abcdef', style: 'fill', tracksAllowance: true, leave: {}, companyId: null })
       expect(s.activePersonId).toBe('p2')
     })
 
     it('leaves company-day mode, since the new person is now selected', () => {
-      const s = plannerReducer({ ...base, companies: [{ id: 'co1', name: 'Acme', days: [] }], editingCompanyId: 'co1' }, { type: 'addPerson', id: 'p2', name: 'Bob' })
+      const s = plannerReducer({ ...base, companies: [{ id: 'co1', name: 'Acme', colour: '#6f5bb8', style: 'fill', days: [] }], editingCompanyId: 'co1' }, { type: 'addPerson', id: 'p2', name: 'Bob' })
       expect(s.editingCompanyId).toBeNull()
     })
 
@@ -533,15 +534,15 @@ describe('persistence', () => {
       ],
       activePersonId: 'p2',
       companies: [
-        { id: 'co1', name: 'Acme', days: [closure] },
-        { id: 'co2', name: 'Beta', days: [] },
+        { id: 'co1', name: 'Acme', colour: '#6f5bb8', style: 'fill', days: [closure] },
+        { id: 'co2', name: 'Beta', colour: '#6f5bb8', style: 'fill', days: [] },
       ],
       editingCompanyId: 'co2',
       yearOffset: 2,
     }
     persist(state, storage)
     const saved = JSON.parse(storage.getItem(STORAGE_KEY)!)
-    expect(saved.version).toBe(5)
+    expect(saved.version).toBe(6)
     expect(saved).not.toHaveProperty('editingCompanyId')
     expect(saved).not.toHaveProperty('companyDays')
     expect(initialState(storage)).toEqual({ ...state, editingCompanyId: null, yearOffset: 0 })
@@ -555,11 +556,13 @@ describe('persistence', () => {
         id: 'person-1',
         name: DEFAULT_PERSON_NAME,
         colour: PERSON_COLOURS[0],
+        style: 'fill',
+        tracksAllowance: true,
         leave: {},
         companyId: 'company-1',
       },
     ])
-    expect(s.companies).toEqual([{ id: 'company-1', name: 'My company', days: [] }])
+    expect(s.companies).toEqual([{ id: 'company-1', name: 'My company', colour: '#6f5bb8', style: 'fill', days: [] }])
     expect(s.editingCompanyId).toBeNull()
     expect(s.activePersonId).toBe('person-1')
     expect(s.shared).toEqual(DEFAULT_SHARED)
@@ -608,6 +611,8 @@ describe('persistence', () => {
         id: 'person-1',
         name: DEFAULT_PERSON_NAME,
         colour: PERSON_COLOURS[0],
+        style: 'fill',
+        tracksAllowance: true,
         allowanceDays: 28,
         workingDays: [1, 2, 3],
         bankHolidaysDeducted: true,
@@ -623,7 +628,7 @@ describe('persistence', () => {
       storage.setItem(STORAGE_KEY, JSON.stringify(v1))
       const restored = initialState(storage)
       expectOnePerson(restored)
-      expect(restored.companies).toEqual([{ id: 'company-1', name: 'My company', days: [] }])
+      expect(restored.companies).toEqual([{ id: 'company-1', name: 'My company', colour: '#6f5bb8', style: 'fill', days: [] }])
     })
 
     it('ignores a stray companyDays field on v1 data', () => {
@@ -637,17 +642,17 @@ describe('persistence', () => {
       storage.setItem(STORAGE_KEY, JSON.stringify({ ...v1, version: 2, companyDays: [closure] }))
       const restored = initialState(storage)
       expectOnePerson(restored)
-      expect(restored.companies).toEqual([{ id: 'company-1', name: 'My company', days: [closure] }])
+      expect(restored.companies).toEqual([{ id: 'company-1', name: 'My company', colour: '#6f5bb8', style: 'fill', days: [closure] }])
       expect(restored.people[0].companyId).toBe('company-1')
     })
 
-    it('rewrites as v5 on the next persist', () => {
+    it('rewrites as v6 on the next persist', () => {
       const storage = new MemoryStorage()
       storage.setItem(STORAGE_KEY, JSON.stringify(v1))
       persist(initialState(storage), storage)
       const saved = JSON.parse(storage.getItem(STORAGE_KEY)!)
-      expect(saved.version).toBe(5)
-      expect(saved.companies).toEqual([{ id: 'company-1', name: 'My company', days: [] }])
+      expect(saved.version).toBe(6)
+      expect(saved.companies).toEqual([{ id: 'company-1', name: 'My company', colour: '#6f5bb8', style: 'fill', days: [] }])
       expect(saved.people[0].leave).toEqual(v1.leave)
       expect(saved).not.toHaveProperty('settings')
       expect(saved).not.toHaveProperty('leave')
@@ -663,7 +668,7 @@ describe('persistence', () => {
         activePersonId: 'b',
         companyDays: [closure, { ...closure, id: 'bad', date: 'nope' }],
       })!
-      expect(m.companies).toEqual([{ id: 'company-1', name: 'My company', days: [closure] }])
+      expect(m.companies).toEqual([{ id: 'company-1', name: 'My company', colour: '#6f5bb8', style: 'fill', days: [closure] }])
       expect(m.people.map((p) => p.companyId)).toEqual(['company-1', 'company-1'])
       expect(m.activePersonId).toBe('b')
     })
@@ -679,9 +684,9 @@ describe('persistence', () => {
           5,
           { name: 'No id' },
           { id: 7 },
-          { id: 'a', name: '  Acme ', days: [closure, { ...closure, id: 'x', date: 'bad' }] },
+          { id: 'a', name: '  Acme ', colour: '#6f5bb8', style: 'fill', days: [closure, { ...closure, id: 'x', date: 'bad' }] },
           { id: 'a', name: 'Dup' },
-          { id: 'b', name: '   ', days: 'oops' },
+          { id: 'b', name: '   ', colour: '#6f5bb8', style: 'fill', days: 'oops' },
           { id: 'c', name: 'y'.repeat(99) },
         ],
         people: [{ id: 'p' }],
@@ -836,8 +841,8 @@ describe('plan import/export', () => {
     ],
     activePersonId: 'p2',
     companies: [
-      { id: 'co1', name: 'Acme', days: [closure] },
-      { id: 'co2', name: 'Beta', days: [] },
+      { id: 'co1', name: 'Acme', colour: '#6f5bb8', style: 'fill', days: [closure] },
+      { id: 'co2', name: 'Beta', colour: '#6f5bb8', style: 'fill', days: [] },
     ],
     editingCompanyId: null,
     yearOffset: 0,
@@ -867,7 +872,7 @@ describe('plan import/export', () => {
     for (const json of ['null', '42', '"plan"', '[]', '{}', '{"version":0}', '{"version":"5"}']) {
       expect(reason(json)).toBe('not-a-plan')
     }
-    expect(reason('{"version":6}')).toBe('newer-version')
+    expect(reason('{"version":7}')).toBe('newer-version')
     const newer = parsePlan('{"version":99}')
     expect(!newer.ok && newer.message).toMatch(/newer version/)
   })
@@ -953,7 +958,7 @@ describe('fortnightly working pattern', () => {
     const person = { ...alice, workingDaysWeek2: [1, 2, 3, 4], fortnightStart: '2026-11-16' }
     const state: PlannerState = { ...base, people: [person], activePersonId: person.id }
     const json = serialisePlan(state)
-    expect(JSON.parse(json).version).toBe(5)
+    expect(JSON.parse(json).version).toBe(6)
     const parsed = parsePlan(json)
     expect(parsed.ok && parsed.plan.people[0]).toMatchObject({ workingDaysWeek2: [1, 2, 3, 4], fortnightStart: '2026-11-16' })
   })
@@ -968,5 +973,126 @@ describe('fortnightly working pattern', () => {
     })!
     expect(m.people[0]).toMatchObject({ workingDaysWeek2: [3], fortnightStart: '2026-11-16' })
     expect(m.people[1]).toMatchObject({ workingDaysWeek2: null, fortnightStart: DEFAULT_SETTINGS.fortnightStart })
+  })
+})
+
+describe('day styles and marks-dates people', () => {
+  const school: PlannerState = {
+    ...base,
+    people: [{ ...alice, tracksAllowance: false, style: 'outline' }],
+  }
+
+  it('nextPortion skips half days when asked', () => {
+    expect(nextPortion(undefined, false)).toBe('full')
+    expect(nextPortion('full', false)).toBeUndefined()
+    expect(nextPortion('full')).toBe('half')
+    expect(nextPortion('half')).toBeUndefined()
+  })
+
+  it('setPersonStyle changes a style and ignores invalid values and unknown ids', () => {
+    expect(plannerReducer(base, { type: 'setPersonStyle', id: 'p1', style: 'outline' }).people[0].style).toBe('outline')
+    expect(plannerReducer(base, { type: 'setPersonStyle', id: 'p1', style: 'dotted' as never })).toBe(base)
+    expect(plannerReducer(base, { type: 'setPersonStyle', id: 'nope', style: 'outline' })).toBe(base)
+  })
+
+  it('setPersonTracksAllowance toggles and ignores invalid values', () => {
+    const s = plannerReducer(base, { type: 'setPersonTracksAllowance', id: 'p1', tracksAllowance: false })
+    expect(s.people[0].tracksAllowance).toBe(false)
+    expect(plannerReducer(base, { type: 'setPersonTracksAllowance', id: 'p1', tracksAllowance: 'no' as never })).toBe(base)
+  })
+
+  it('cycles none, full, none for a non-tracking person, but with half for others', () => {
+    const once = plannerReducer(school, { type: 'cycleLeave', date: '2026-11-21' })
+    expect(leaveOf(once)['2026-11-21']).toBe('full')
+    expect(leaveOf(plannerReducer(once, { type: 'cycleLeave', date: '2026-11-21' }))).toEqual({})
+    const normal = plannerReducer(base, { type: 'cycleLeave', date: '2026-11-18' })
+    expect(leaveOf(plannerReducer(normal, { type: 'cycleLeave', date: '2026-11-18' }))['2026-11-18']).toBe('half')
+  })
+
+  it('setLeaveRange covers weekends and bank holidays for a non-tracking person', () => {
+    const s = plannerReducer(school, { type: 'setLeaveRange', start: '2026-12-24', end: '2026-12-28', portion: 'full' })
+    expect(Object.keys(leaveOf(s))).toEqual(['2026-12-24', '2026-12-25', '2026-12-26', '2026-12-27', '2026-12-28'])
+    const cleared = plannerReducer(s, { type: 'setLeaveRange', start: '2026-12-25', end: '2026-12-26', portion: undefined })
+    expect(Object.keys(leaveOf(cleared))).toEqual(['2026-12-24', '2026-12-27', '2026-12-28'])
+  })
+
+  it('addPerson defaults to a filled, allowance-tracking person', () => {
+    expect(plannerReducer(base, { type: 'addPerson', id: 'p2', name: 'Bob' }).people[1]).toMatchObject({
+      style: 'fill',
+      tracksAllowance: true,
+    })
+  })
+
+  describe('company colour and style', () => {
+    it('addCompany cycles through the preset colours with a filled style', () => {
+      let s = base
+      for (let i = 0; i < 7; i++) s = plannerReducer(s, { type: 'addCompany', id: `c${i}`, name: `C${i}` })
+      expect(s.companies.map((c) => c.colour)).toEqual([...COMPANY_COLOURS, COMPANY_COLOURS[0]])
+      expect(s.companies.every((c) => c.style === 'fill')).toBe(true)
+    })
+
+    const withCo = plannerReducer(base, { type: 'addCompany', id: 'co1', name: 'Acme' })
+
+    it('setCompanyColour lower-cases valid colours and ignores invalid ones', () => {
+      expect(plannerReducer(withCo, { type: 'setCompanyColour', id: 'co1', colour: '#ABCDEF' }).companies[0].colour).toBe('#abcdef')
+      expect(plannerReducer(withCo, { type: 'setCompanyColour', id: 'co1', colour: 'red' })).toBe(withCo)
+      expect(plannerReducer(withCo, { type: 'setCompanyColour', id: 'nope', colour: '#abcdef' })).toBe(withCo)
+    })
+
+    it('setCompanyStyle sets valid styles and ignores invalid ones', () => {
+      expect(plannerReducer(withCo, { type: 'setCompanyStyle', id: 'co1', style: 'outline' }).companies[0].style).toBe('outline')
+      expect(plannerReducer(withCo, { type: 'setCompanyStyle', id: 'co1', style: 'x' as never })).toBe(withCo)
+    })
+  })
+
+  describe('persistence', () => {
+    it('migrates v5 data with default styles, a default company colour and tracking people', () => {
+      const m = migrateStored({
+        version: 5,
+        shared: {},
+        people: [{ id: 'a', name: 'A', companyId: 'co1' }],
+        activePersonId: 'a',
+        companies: [{ id: 'co1', name: 'Acme', days: [] }],
+      })!
+      expect(m.people[0]).toMatchObject({ style: 'fill', tracksAllowance: true })
+      expect(m.companies[0]).toMatchObject({ colour: DEFAULT_COMPANY_COLOUR, style: 'fill' })
+    })
+
+    it('migrates older versions with the default company colour', () => {
+      expect(migrateStored({ version: 2, settings: {}, leave: {} })!.companies[0]).toMatchObject({
+        colour: DEFAULT_COMPANY_COLOUR,
+        style: 'fill',
+      })
+    })
+
+    it('sanitises bad values and lower-cases colours', () => {
+      const m = migrateStored({
+        version: 6,
+        shared: {},
+        people: [
+          { id: 'a', style: 'wavy', tracksAllowance: 'yes' },
+          { id: 'b', style: 'outline', tracksAllowance: false },
+        ],
+        activePersonId: 'a',
+        companies: [
+          { id: 'c1', name: 'One', colour: 'purple', style: 5, days: [] },
+          { id: 'c2', name: 'Two', colour: '#ABCDEF', style: 'outline', days: [] },
+        ],
+      })!
+      expect(m.people[0]).toMatchObject({ style: 'fill', tracksAllowance: true })
+      expect(m.people[1]).toMatchObject({ style: 'outline', tracksAllowance: false })
+      expect(m.companies[0]).toMatchObject({ colour: DEFAULT_COMPANY_COLOUR, style: 'fill' })
+      expect(m.companies[1]).toMatchObject({ colour: '#abcdef', style: 'outline' })
+    })
+
+    it('round-trips through serialisePlan', () => {
+      const state: PlannerState = {
+        ...school,
+        companies: [{ id: 'co1', name: 'Acme', colour: '#2a8aa6', style: 'outline', days: [] }],
+      }
+      const parsed = parsePlan(serialisePlan(state))
+      expect(parsed.ok && parsed.plan.people[0]).toMatchObject({ style: 'outline', tracksAllowance: false })
+      expect(parsed.ok && parsed.plan.companies[0]).toMatchObject({ colour: '#2a8aa6', style: 'outline' })
+    })
   })
 })

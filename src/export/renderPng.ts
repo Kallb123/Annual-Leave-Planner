@@ -1,7 +1,8 @@
 import type { AllowanceSummary } from '../domain/allowance'
-import type { DayCell, YearView } from '../domain/calendar'
+import type { DayCell, PersonLeave, YearView } from '../domain/calendar'
 import { WEEKDAY_INITIALS_MON_FIRST } from '../domain/dates'
-import { halfDayTint, legendItems, palette, textOn } from '../theme'
+import type { DayStyle } from '../domain/types'
+import { companyDayColours, halfDayTint, legendItems, palette, textOn } from '../theme'
 
 /**
  * Draws a leave year to a <canvas> for PNG export.
@@ -15,6 +16,10 @@ import { halfDayTint, legendItems, palette, textOn } from '../theme'
 export interface ExportPerson {
   name: string
   colour: string
+  /** Filled swatch and cells, or an outline. */
+  style: DayStyle
+  /** False for someone who just marks dates: the header shows "Marked n" and there is no entitlement. */
+  tracksAllowance: boolean
   summary: AllowanceSummary
   /** Over-entitlement warning for this person (see `overEntitlementMessage`). */
   warning?: string
@@ -45,6 +50,10 @@ const FONT = 'Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif'
 const FONT_DISPLAY = '"Space Grotesk", Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif'
 const HALF_TINT = 0.2
 const CELL_RADIUS = 6
+/** Gap between nested outlines in one cell. */
+const OUTLINE_STEP = 3
+/** How far an open outline side runs past the cell edge (it is clipped, so only the straight lines show). */
+const OUTLINE_BLEED = 10
 /** Inset of the white month card from the page edge. */
 const CARD_INSET = 16
 const CARD_RADIUS = 18
@@ -118,13 +127,38 @@ interface LegendEntry {
   swatch: (ctx: CanvasRenderingContext2D, x: number, y: number) => void
 }
 
-function legendEntries(meta: ExportMeta): LegendEntry[] {
+/** A legend or header swatch: a filled rounded square, or a stroked one for the outline style. */
+function drawSwatch(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  size: number,
+  colour: string,
+  style: DayStyle,
+  radius = 4,
+) {
+  if (style === 'outline') {
+    ctx.strokeStyle = colour
+    ctx.lineWidth = 2
+    roundRect(ctx, x + 1, y + 1, size - 2, size - 2, radius - 1)
+    ctx.stroke()
+  } else {
+    ctx.fillStyle = colour
+    roundRect(ctx, x, y, size, size, radius)
+    ctx.fill()
+  }
+}
+
+function legendEntries(meta: ExportMeta, company: YearView['company']): LegendEntry[] {
   const fixed: LegendEntry[] = legendItems.map((item) => ({
     label: item.label,
     swatch: (ctx, x, y) => {
-      ctx.fillStyle = palette[item.key]
-      roundRect(ctx, x, y - 8, 16, 16, 4)
-      ctx.fill()
+      if (item.key === 'companyDay' && company) {
+        const colour = company.style === 'outline' ? company.colour : companyDayColours(company.colour).fill
+        drawSwatch(ctx, x, y - 8, 16, colour, company.style)
+      } else {
+        drawSwatch(ctx, x, y - 8, 16, palette[item.key], 'fill')
+      }
     },
   }))
   const halfSwatch = (colour: string): LegendEntry => ({
@@ -132,15 +166,12 @@ function legendEntries(meta: ExportMeta): LegendEntry[] {
     swatch: (ctx, x, y) => drawHalfSwatch(ctx, x, y - 8, 16, colour),
   })
   if (meta.people.length === 1) {
-    const colour = meta.people[0].colour
+    const [person] = meta.people
+    const colour = person.colour
     return [
       {
-        label: 'Annual leave',
-        swatch: (ctx, x, y) => {
-          ctx.fillStyle = colour
-          roundRect(ctx, x, y - 8, 16, 16, 4)
-          ctx.fill()
-        },
+        label: person.tracksAllowance ? 'Annual leave' : person.name,
+        swatch: (ctx, x, y) => drawSwatch(ctx, x, y - 8, 16, colour, person.style),
       },
       halfSwatch(colour),
       ...fixed,
@@ -149,11 +180,7 @@ function legendEntries(meta: ExportMeta): LegendEntry[] {
   return [
     ...meta.people.map((p) => ({
       label: p.name,
-      swatch: (ctx: CanvasRenderingContext2D, x: number, y: number) => {
-        ctx.fillStyle = p.colour
-        roundRect(ctx, x, y - 8, 16, 16, 4)
-        ctx.fill()
-      },
+      swatch: (ctx: CanvasRenderingContext2D, x: number, y: number) => drawSwatch(ctx, x, y - 8, 16, p.colour, p.style),
     })),
     halfSwatch(palette.textMuted),
     ...fixed,
@@ -207,7 +234,7 @@ export function renderYearToCanvas(
   const people = meta.people
   const measure = document.createElement('canvas').getContext('2d')
   if (!measure) throw new Error('Canvas 2D context unavailable')
-  const entries = legendEntries(meta)
+  const entries = legendEntries(meta, view.company)
   const baseWidth = computeLayout(view, options.columns, people.length).width
   const legendRows = layoutLegend(measure, entries, baseWidth - PADDING * 2).rows
   const layout = computeLayout(view, options.columns, people.length, legendRows)
@@ -254,7 +281,7 @@ export function renderYearToCanvas(
     month.weeks.forEach((week, w) => {
       week.forEach((cell, d) => {
         if (!cell) return
-        drawDay(ctx, cell, x + d * CELL, y + MONTH_TITLE_H + WEEKDAY_H + w * CELL)
+        drawDay(ctx, cell, x + d * CELL, y + MONTH_TITLE_H + WEEKDAY_H + w * CELL, d, view.company)
       })
     })
   })
@@ -263,7 +290,10 @@ export function renderYearToCanvas(
   return canvas
 }
 
-function summaryParts(s: AllowanceSummary, withEntitlement: boolean) {
+/** Header figures for one person: "Marked n" alone for someone with no allowance. */
+export function summaryParts(person: Pick<ExportPerson, 'summary' | 'tracksAllowance'>, withEntitlement: boolean) {
+  const s = person.summary
+  if (!person.tracksAllowance) return [{ text: `Marked ${fmt(s.booked)}`, color: palette.text }]
   return [
     ...(withEntitlement ? [{ text: `Entitlement ${fmt(s.entitlement)}`, color: palette.text }] : []),
     { text: `Booked ${fmt(s.booked)}`, color: palette.text },
@@ -323,7 +353,7 @@ function drawHeader(ctx: CanvasRenderingContext2D, meta: ExportMeta, layout: Lay
   if (meta.people.length === 1) {
     const [person] = meta.people
     ctx.font = `600 15px ${FONT}`
-    drawParts(ctx, summaryParts(person.summary, true), right, PADDING + 30)
+    drawParts(ctx, summaryParts(person, true), right, PADDING + 30)
     if (person.warning) {
       ctx.fillStyle = palette.warn
       ctx.font = `600 14px ${FONT}`
@@ -336,15 +366,13 @@ function drawHeader(ctx: CanvasRenderingContext2D, meta: ExportMeta, layout: Lay
   // Several people: one row each (swatch, name, figures), then a compact warning line.
   const blockWidth = layout.width - PADDING * 2 - TITLE_RESERVED_W
   ctx.font = `600 13px ${FONT}`
-  const rows = meta.people.map((p) => ({ person: p, parts: summaryParts(p.summary, false) }))
+  const rows = meta.people.map((p) => ({ person: p, parts: summaryParts(p, false) }))
   const statsWidth = Math.max(...rows.map((r) => partsWidth(ctx, r.parts)))
   const nameMax = Math.max(60, Math.min(200, blockWidth - 20 - 16 - statsWidth))
   const nameX = right - statsWidth - 16 - nameMax
   rows.forEach(({ person, parts }, i) => {
     const cy = PADDING + 14 + i * PERSON_ROW_H
-    ctx.fillStyle = person.colour
-    roundRect(ctx, nameX - 20, cy - 7, 14, 14, 4)
-    ctx.fill()
+    drawSwatch(ctx, nameX - 20, cy - 7, 14, person.colour, person.style)
     ctx.font = `600 13px ${FONT}`
     ctx.textBaseline = 'middle'
     ctx.textAlign = 'left'
@@ -354,7 +382,7 @@ function drawHeader(ctx: CanvasRenderingContext2D, meta: ExportMeta, layout: Lay
   })
 
   const over = meta.people
-    .filter((p) => p.summary.remaining < 0 || p.warning)
+    .filter((p) => p.tracksAllowance && (p.summary.remaining < 0 || p.warning))
     .map((p) => (p.summary.remaining < 0 ? `${p.name} (−${fmt(-p.summary.remaining)})` : p.name))
   if (over.length > 0) {
     ctx.fillStyle = palette.warn
@@ -369,12 +397,67 @@ function drawHeader(ctx: CanvasRenderingContext2D, meta: ExportMeta, layout: Lay
   ctx.textBaseline = 'alphabetic'
 }
 
-function drawDay(ctx: CanvasRenderingContext2D, cell: DayCell, x: number, y: number) {
+/** Which sides of an outline are open (joined to the next day) in this week column (0 = Monday, 6 = Sunday). */
+export function outlineSides(joinsPrev: boolean, joinsNext: boolean, column: number) {
+  return { left: joinsPrev && column > 0, right: joinsNext && column < 6 }
+}
+
+export interface OutlineLayer {
+  colour: string
+  half: boolean
+  joinsPrev: boolean
+  joinsNext: boolean
+}
+
+/** Outlines to draw on a day, outermost first: each outline person, then the company day if it is outlined. */
+export function outlineLayers(cell: DayCell, company: YearView['company']): OutlineLayer[] {
+  const layers: OutlineLayer[] = cell.people
+    .filter((p) => p.style === 'outline')
+    .map((p) => ({ colour: p.colour, half: p.portion === 'half', joinsPrev: p.joinsPrev, joinsNext: p.joinsNext }))
+  if (company?.style === 'outline' && cell.kind === 'company-day') {
+    layers.push({ colour: company.colour, half: false, joinsPrev: cell.companyJoinsPrev, joinsNext: cell.companyJoinsNext })
+  }
+  return layers
+}
+
+/**
+ * Strokes one outline layer. The shape is clipped to the cell's own box, and a joined side is pushed
+ * past the clip so it draws open (just the straight top and bottom lines); neighbouring cells meet at
+ * the cell edge, so a run reads as one continuous outline.
+ */
+function drawOutline(ctx: CanvasRenderingContext2D, layer: OutlineLayer, index: number, column: number, x: number, y: number) {
+  const sides = outlineSides(layer.joinsPrev, layer.joinsNext, column)
+  const inset = 3 + index * OUTLINE_STEP
+  const left = sides.left ? x - OUTLINE_BLEED : x + inset
+  const right = sides.right ? x + CELL + OUTLINE_BLEED : x + CELL - inset
+  const top = y + inset
+  const bottom = y + CELL - inset
+  ctx.save()
+  ctx.beginPath()
+  ctx.rect(x, y, CELL, CELL)
+  ctx.clip()
+  ctx.strokeStyle = layer.colour
+  ctx.lineWidth = 2
+  if (layer.half) ctx.setLineDash([3, 2])
+  const r = Math.max(1, CELL_RADIUS - index)
+  roundRect(ctx, left, top, right - left, bottom - top, [sides.left ? 0 : r, sides.right ? 0 : r, sides.right ? 0 : r, sides.left ? 0 : r])
+  ctx.stroke()
+  ctx.restore()
+}
+
+function drawDay(
+  ctx: CanvasRenderingContext2D,
+  cell: DayCell,
+  x: number,
+  y: number,
+  column: number,
+  company: YearView['company'],
+) {
   const inset = 2
   const size = CELL - inset * 2
   const left = x + inset
   const top = y + inset
-  const people = cell.people
+  const people: PersonLeave[] = cell.people.filter((p) => p.style === 'fill')
 
   ctx.globalAlpha = cell.inRange ? 1 : 0.35
   if (people.length === 1) {
@@ -405,13 +488,14 @@ function drawDay(ctx: CanvasRenderingContext2D, cell: DayCell, x: number, y: num
     roundRect(ctx, left, top, size, size, CELL_RADIUS)
     ctx.fill()
   } else {
-    const fill = cellFill(cell)
+    const fill = cellFill(cell, company)
     if (fill) {
       ctx.fillStyle = fill
       roundRect(ctx, left, top, size, size, CELL_RADIUS)
       ctx.fill()
     }
   }
+  outlineLayers(cell, company).forEach((layer, i) => drawOutline(ctx, layer, i, column, x, y))
   if (cell.overLimit) {
     // Same marking as the screen: a warning-coloured outline inside the cell.
     ctx.strokeStyle = palette.warn
@@ -429,8 +513,8 @@ function drawDay(ctx: CanvasRenderingContext2D, cell: DayCell, x: number, y: num
     roundRect(ctx, cx - 9, cy - 8, 18, 16, 8)
     ctx.fill()
   }
-  ctx.fillStyle = numberColour(cell)
-  ctx.font = `${people.length > 0 || cell.kind === 'bank-holiday' || cell.kind === 'company-day' ? 600 : 500} 12px ${FONT}`
+  ctx.fillStyle = numberColour(cell, people, company)
+  ctx.font = `${cell.people.length > 0 || cell.kind === 'bank-holiday' || cell.kind === 'company-day' ? 600 : 500} 12px ${FONT}`
   ctx.textAlign = 'center'
   ctx.textBaseline = 'middle'
   if (allFull) {
@@ -445,19 +529,25 @@ function drawDay(ctx: CanvasRenderingContext2D, cell: DayCell, x: number, y: num
   ctx.globalAlpha = 1
 }
 
-function numberColour(cell: DayCell): string {
-  const people = cell.people
-  if (people.length === 1) return people[0].portion === 'full' ? textOn(people[0].colour) : palette.text
-  if (people.length > 1) return people.every((p) => p.portion === 'full') ? '#ffffff' : palette.text
+/** Number colour; `fillPeople` are the people whose cells are filled (outline people leave the cell's own colouring). */
+function numberColour(cell: DayCell, fillPeople: PersonLeave[], company: YearView['company']): string {
+  if (fillPeople.length === 1) return fillPeople[0].portion === 'full' ? textOn(fillPeople[0].colour) : palette.text
+  if (fillPeople.length > 1) return fillPeople.every((p) => p.portion === 'full') ? '#ffffff' : palette.text
   if (cell.kind === 'bank-holiday') return palette.bankHolidayText
-  if (cell.kind === 'company-day') return palette.companyDayText
+  if (cell.kind === 'company-day') {
+    if (!company) return palette.companyDayText
+    return company.style === 'fill' ? companyDayColours(company.colour).text : palette.text
+  }
   if (cell.kind === 'non-working') return palette.nonWorkingText
   return palette.text
 }
 
-function cellFill(cell: DayCell): string | null {
+function cellFill(cell: DayCell, company: YearView['company']): string | null {
   if (cell.kind === 'bank-holiday') return palette.bankHoliday
-  if (cell.kind === 'company-day') return palette.companyDay
+  if (cell.kind === 'company-day') {
+    if (!company) return palette.companyDay
+    return company.style === 'fill' ? companyDayColours(company.colour).fill : null
+  }
   if (cell.kind === 'non-working') return palette.nonWorking
   return null
 }
@@ -475,7 +565,7 @@ function drawLegend(ctx: CanvasRenderingContext2D, layout: Layout, entries: Lege
   }
 }
 
-function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
+function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number | number[]) {
   ctx.beginPath()
   ctx.roundRect(x, y, w, h, r)
 }

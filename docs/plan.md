@@ -65,6 +65,7 @@ People with a fixed annual leave allowance want to see the whole leave year at a
 - [ ] Other countries' public holidays (for example via the Nager.Date API at build time)
 - [x] Custom "company days" (office closures, extra holidays)
 - [x] Several companies, each with its own company days, assigned to people and edited by clicking or dragging on the calendar
+- [x] Day styles: filled or outlined people and companies, company colours, and people who just mark dates (for example school holidays)
 - [ ] Accessibility audit (keyboard grid navigation with arrow keys, screen reader pass)
 - [ ] Visual regression tests for the PNG renderer (Playwright screenshot comparison)
 - [x] Installable PWA with offline support

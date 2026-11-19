@@ -1,8 +1,8 @@
 import { daysInMonth, MONTH_NAMES, parseIso, toIso, dayOfWeek, type IsoDate } from './dates'
-import { classifyDay, isBookable, type DayKind } from './allowance'
+import { classifyDay, isMarkable, type DayKind } from './allowance'
 import type { BankHolidayIndex } from './bankHolidays'
 import type { CompanyDayIndex } from './companyDays'
-import type { CompanyDay, DateRange, LeaveEntries, LeavePortion, Settings } from './types'
+import type { CompanyDay, DateRange, DayStyle, LeaveEntries, LeavePortion, Settings } from './types'
 import type { WorkPattern } from './workPattern'
 
 /**
@@ -13,6 +13,8 @@ import type { WorkPattern } from './workPattern'
 export interface YearView {
   range: DateRange
   months: MonthView[]
+  /** The company whose days are shown (the one being edited, else the active person's), or null. */
+  company: { name: string; colour: string; style: DayStyle } | null
 }
 
 export interface MonthView {
@@ -27,7 +29,14 @@ export interface PersonLeave {
   personId: string
   name: string
   colour: string
+  style: DayStyle
+  /** False for someone who just marks dates: no allowance, any day can be marked. */
+  tracksAllowance: boolean
   portion: LeavePortion
+  /** The same person also has a counted mark on the previous date, within the same month. */
+  joinsPrev: boolean
+  /** The same person also has a counted mark on the next date, within the same month. */
+  joinsNext: boolean
   /** This booking takes that person over their entitlement. */
   overLimit: boolean
   /** True for the person currently being edited. */
@@ -39,6 +48,8 @@ export interface PersonLeaveSource {
   id: string
   name: string
   colour: string
+  style: DayStyle
+  tracksAllowance: boolean
   active: boolean
   /** Effective settings (shared + that person's), used to decide which days are bookable for them. */
   settings: Settings
@@ -55,6 +66,11 @@ export interface DayCell {
   kind: DayKind
   /** False for days in a partial first/last month that fall outside the leave year. */
   inRange: boolean
+  /** In range and markable for the active person (any day if they don't track an allowance, else a working day). */
+  bookable: boolean
+  /** The previous / next date in the same month is also a company day. */
+  companyJoinsPrev: boolean
+  companyJoinsNext: boolean
   /** The active person's portion. */
   leave: LeavePortion | null
   /** Everyone whose leave counts on this day (bookable for them, in range), in people order. Includes the active person. */
@@ -78,6 +94,7 @@ export function buildYearView(
   today: IsoDate | null = null,
   overLimit: ReadonlySet<IsoDate> = new Set(),
   people: readonly PersonLeaveSource[] = [],
+  company: YearView['company'] = null,
 ): YearView {
   const start = parseIso(range.start)
   const end = parseIso(range.end)
@@ -92,7 +109,7 @@ export function buildYearView(
       year += 1
     }
   }
-  return { range, months }
+  return { range, months, company }
 }
 
 function buildMonth(
@@ -108,34 +125,52 @@ function buildMonth(
   people: readonly PersonLeaveSource[],
 ): MonthView {
   const cells: (DayCell | null)[] = []
+  const monthLength = daysInMonth(year, month)
+  const activeSource = people.find((p) => p.active)
+  /** Whether this person's mark on `date` counts: in range, has leave, and markable for them. */
+  const counts = (p: PersonLeaveSource, date: IsoDate) =>
+    date >= range.start &&
+    date <= range.end &&
+    p.leave[date] !== undefined &&
+    isMarkable(date, p.settings, holidays, p.companyDays, p.tracksAllowance)
   // Monday-first offset: Mon → 0 … Sun → 6
   const lead = (dayOfWeek(toIso(year, month, 1)) + 6) % 7
   for (let i = 0; i < lead; i++) cells.push(null)
 
-  for (let day = 1; day <= daysInMonth(year, month); day++) {
+  for (let day = 1; day <= monthLength; day++) {
     const date = toIso(year, month, day)
     const inRange = date >= range.start && date <= range.end
     const dayPeople: PersonLeave[] = []
     if (inRange) {
       for (const p of people) {
         const portion = p.leave[date]
-        if (!portion || !isBookable(date, p.settings, holidays, p.companyDays)) continue
+        if (!portion || !counts(p, date)) continue
         dayPeople.push({
           personId: p.id,
           name: p.name,
           colour: p.colour,
+          style: p.style,
+          tracksAllowance: p.tracksAllowance,
           portion,
+          joinsPrev: day > 1 && counts(p, toIso(year, month, day - 1)),
+          joinsNext: day < monthLength && counts(p, toIso(year, month, day + 1)),
           overLimit: p.overLimit.has(date),
           active: p.active,
         })
       }
     }
     const companyDay = companyDays.get(date) ?? null
+    const kind = classifyDay(date, settings, holidays, companyDays)
+    const isCompanyDay = (d: number) =>
+      classifyDay(toIso(year, month, d), settings, holidays, companyDays) === 'company-day'
     cells.push({
       date,
       day,
-      kind: classifyDay(date, settings, holidays, companyDays),
+      kind,
       inRange,
+      bookable: inRange && (activeSource?.tracksAllowance === false || kind === 'working'),
+      companyJoinsPrev: kind === 'company-day' && day > 1 && isCompanyDay(day - 1),
+      companyJoinsNext: kind === 'company-day' && day < monthLength && isCompanyDay(day + 1),
       leave: inRange ? (leave[date] ?? null) : null,
       people: dayPeople,
       holidayName: holidays.get(date) ?? null,
