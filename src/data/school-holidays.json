@@ -155,11 +155,55 @@
       ]
     },
     {
+      "id": "doncaster",
+      "name": "Doncaster",
+      "authority": "City of Doncaster Council",
+      "region": "South Yorkshire",
+      "source": "https://www.doncaster.gov.uk/schoolholidays",
+      "checked": "2026-11-19",
+      "holidays": [
+        {"start": "2026-10-26", "end": "2026-10-30", "name": "October half term"},
+        {"start": "2026-12-21", "end": "2027-01-01", "name": "Christmas holidays"},
+        {"start": "2027-02-15", "end": "2027-02-19", "name": "February half term"},
+        {"start": "2027-03-26", "end": "2027-04-09", "name": "Easter holidays"},
+        {"start": "2027-05-31", "end": "2027-06-04", "name": "May half term"},
+        {"start": "2027-07-22", "end": "2027-08-31", "name": "Summer holidays"},
+        {"start": "2027-10-25", "end": "2027-10-29", "name": "October half term"},
+        {"start": "2027-12-20", "end": "2028-01-03", "name": "Christmas holidays"},
+        {"start": "2028-02-14", "end": "2028-02-18", "name": "February half term"},
+        {"start": "2028-04-03", "end": "2028-04-17", "name": "Easter holidays"},
+        {"start": "2028-05-29", "end": "2028-06-02", "name": "May half term"},
+        {"start": "2028-07-24", "end": "2028-08-31", "name": "Summer holidays"}
+      ]
+    },
+    {
       "id": "rotherham",
       "name": "Rotherham",
       "authority": "Rotherham Metropolitan Borough Council",
       "region": "South Yorkshire",
       "source": "https://www.rotherham.gov.uk/schools-schooling/school-term-dates",
+      "checked": "2026-11-19",
+      "holidays": [
+        {"start": "2026-10-26", "end": "2026-10-30", "name": "October half term"},
+        {"start": "2026-12-21", "end": "2027-01-01", "name": "Christmas holidays"},
+        {"start": "2027-02-15", "end": "2027-02-19", "name": "February half term"},
+        {"start": "2027-03-26", "end": "2027-04-09", "name": "Easter holidays"},
+        {"start": "2027-05-31", "end": "2027-06-04", "name": "May half term"},
+        {"start": "2027-07-22", "end": "2027-08-31", "name": "Summer holidays"},
+        {"start": "2027-10-25", "end": "2027-10-29", "name": "October half term"},
+        {"start": "2027-12-20", "end": "2028-01-03", "name": "Christmas holidays"},
+        {"start": "2028-02-14", "end": "2028-02-18", "name": "February half term"},
+        {"start": "2028-04-03", "end": "2028-04-17", "name": "Easter holidays"},
+        {"start": "2028-05-29", "end": "2028-06-02", "name": "May half term"},
+        {"start": "2028-07-24", "end": "2028-08-31", "name": "Summer holidays"}
+      ]
+    },
+    {
+      "id": "sheffield",
+      "name": "Sheffield",
+      "authority": "Sheffield City Council",
+      "region": "South Yorkshire",
+      "source": "https://www.sheffield.gov.uk/schoolholidays",
       "checked": "2026-11-19",
       "holidays": [
         {"start": "2026-10-26", "end": "2026-10-30", "name": "October half term"},
