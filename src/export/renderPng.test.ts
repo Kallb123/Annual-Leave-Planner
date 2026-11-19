@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { buildYearView } from '../domain/calendar'
 import { NO_COMPANY_DAYS } from '../domain/companyDays'
 import { DEFAULT_SETTINGS } from '../domain/types'
-import type { DayCell, PersonLeave } from '../domain/calendar'
+import type { CalendarMark, DayCell, PersonLeave } from '../domain/calendar'
 import { outlineLayers, outlineSides, summaryParts, computeLayout, loadExportFonts } from './renderPng'
 
 const view = buildYearView({ start: '2026-01-01', end: '2026-12-31' }, DEFAULT_SETTINGS, {}, new Map(), NO_COMPANY_DAYS)
@@ -110,6 +110,16 @@ describe('outlineLayers', () => {
     active: true,
     ...over,
   })
+  const calendar = (over: Partial<CalendarMark>): CalendarMark => ({
+    calendarId: 'c',
+    name: 'Cal',
+    colour: '#aa0000',
+    style: 'outline',
+    events: ['E'],
+    joinsPrev: true,
+    joinsNext: false,
+    ...over,
+  })
   const cell = (over: Partial<DayCell>): DayCell => {
     const base = view.months[0].weeks.flat().find((c): c is DayCell => c !== null)!
     return { ...base, ...over }
@@ -135,5 +145,18 @@ describe('outlineLayers', () => {
   it('ignores a filled company and non-company days', () => {
     expect(outlineLayers(cell({ kind: 'company-day' }), { ...outlined, style: 'fill' })).toEqual([])
     expect(outlineLayers(cell({ kind: 'working' }), outlined)).toEqual([])
+  })
+
+  it('nests company day, then outline calendars, then outline people (as on screen)', () => {
+    const layers = outlineLayers(
+      cell({
+        kind: 'company-day',
+        people: [person({})],
+        calendars: [calendar({}), calendar({ calendarId: 'f', style: 'fill', colour: '#00ff00' })],
+      }),
+      outlined,
+    )
+    expect(layers.map((l) => l.colour)).toEqual(['#6f5bb8', '#aa0000', '#112233'])
+    expect(layers[1]).toEqual({ colour: '#aa0000', half: false, joinsPrev: true, joinsNext: false })
   })
 })

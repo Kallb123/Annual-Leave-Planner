@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef, useState, type CSSProperties, type FormEvent, type KeyboardEvent, type MouseEvent } from 'react'
+import { CalendarsSection } from './CalendarsSection'
 import { CompaniesSection } from './CompaniesSection'
 import { DayCountInput } from './DayCountInput'
 import { StyleField } from './StyleControls'
@@ -10,6 +11,7 @@ import {
   PERSON_NAME_MAX,
   REGIONS,
   type Company,
+  type ImportedCalendar,
   type DateRange,
   type Person,
   type Region,
@@ -33,6 +35,8 @@ export interface SettingsDrawerProps {
   /** Everyone in the plan (for the person chooser). */
   people: PersonStatus[]
   companies: Company[]
+  calendars: ImportedCalendar[]
+  onImportCalendarFile: (file: File) => void
   /** The leave year being shown (for "Clear X's leave" and company day counts). */
   range: DateRange
   /** The leave year's label, e.g. "2026" or "2026/27". */
@@ -495,7 +499,7 @@ function SwitchRow({
 
 /* --- Plan tab -------------------------------------------------------------- */
 
-function PlanTab({ settings, people, companies, dispatch, onExportJson, onImportFile, importError }: SettingsDrawerProps) {
+function PlanTab({ settings, people, companies, calendars, onImportCalendarFile, dispatch, onExportJson, onImportFile, importError }: SettingsDrawerProps) {
   const update = (patch: Partial<Settings>) => dispatch({ type: 'updateSettings', patch })
   // Leap years don't matter for picking a reset day; 2001 is a non-leap year, so cap Feb at 28.
   const maxStartDay = daysInMonth(2001, settings.leaveYearStartMonth)
@@ -567,6 +571,10 @@ function PlanTab({ settings, people, companies, dispatch, onExportJson, onImport
 
       <section className="drawer-section drawer-divided" aria-labelledby="companies-heading">
         <CompaniesSection companies={companies} people={people.map((p) => p.person)} dispatch={dispatch} />
+      </section>
+
+      <section className="drawer-section drawer-divided" aria-labelledby="calendars-section-heading">
+        <CalendarsSection calendars={calendars} onImportFile={onImportCalendarFile} dispatch={dispatch} />
       </section>
 
       <section className="drawer-section drawer-divided" aria-labelledby="drawer-backup-h">

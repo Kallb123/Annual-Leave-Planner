@@ -2,10 +2,10 @@ import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, 
 import { WEEKDAY_INITIALS_MON_FIRST, dayOfWeek, eachDay } from '../domain/dates'
 import type { Company, CompanyDay, LeavePortion } from '../domain/types'
 import { nextPortion } from '../state/plannerState'
-import type { DayCell, MonthView, PersonLeave, YearView } from '../domain/calendar'
+import { dayBands, needsPill, type DayBand, type DayCell, type MonthView, type PersonLeave, type YearView } from '../domain/calendar'
 import { bridgeSummary, type Bridge } from '../domain/bridges'
 import type { DayStyle } from '../domain/types'
-import { companyDayColours, halfDayTint, legendItems, textOn } from '../theme'
+import { companyDayColours, halfDayTint, legendItems } from '../theme'
 import { CompanyDayPopover, type CompanyDayChoice } from './CompanyDayPopover'
 import './YearCalendar.css'
 
@@ -271,12 +271,15 @@ function Day({
   companyOutline: string | null
 }) {
   const bookable = cell.inRange && (companyMode || cell.bookable)
-  const fillPeople = cell.people.filter((p) => p.style === 'fill')
-  // Outermost first: the company day, then each outline person.
+  const bands = dayBands(cell)
+  // Outermost first: the company day, then each outline calendar, then each outline person.
   const outlines: Outline[] = [
     ...(companyOutline && cell.kind === 'company-day'
       ? [{ key: 'company', colour: companyOutline, half: false, joinsPrev: cell.companyJoinsPrev, joinsNext: cell.companyJoinsNext }]
       : []),
+    ...cell.calendars
+      .filter((c) => c.style === 'outline')
+      .map((c) => ({ key: `cal-${c.calendarId}`, colour: c.colour, half: false, joinsPrev: c.joinsPrev, joinsNext: c.joinsNext })),
     ...cell.people
       .filter((p) => p.style === 'outline')
       .map((p) => ({ key: p.personId, colour: p.colour, half: p.portion === 'half', joinsPrev: p.joinsPrev, joinsNext: p.joinsNext })),
@@ -285,7 +288,7 @@ function Day({
     'day',
     `day--${cell.kind}`,
     cell.kind === 'company-day' && companyOutline && 'day--company-outline',
-    cell.people.length > 0 && 'day--has-leave',
+    (cell.people.length > 0 || cell.calendars.length > 0) && 'day--has-leave',
     !cell.inRange && 'day--out-of-range',
     cell.isToday && 'day--today',
     cell.overLimit && 'day--over-limit',
@@ -298,6 +301,7 @@ function Day({
   const description = [
     cell.holidayName,
     cell.companyDayName,
+    ...cell.calendars.map((c) => `${c.name}: ${c.events.join(', ')}`),
     cell.people.length > 0 && cell.people.map(personDescription).join(', '),
     cell.overLimit && 'over entitlement',
     bridge && `Suggested: ${bridgeSummary(bridge).charAt(0).toLowerCase()}${bridgeSummary(bridge).slice(1)}`,
@@ -315,10 +319,10 @@ function Day({
       aria-label={`${cell.date}${description ? ` – ${description}` : ''}`}
       aria-pressed={bookable ? (companyMode ? cell.companyDay !== null : cell.leave !== null) : undefined}
       data-date={cell.date}
-      style={leaveStyle(fillPeople)}
+      style={leaveStyle(bands)}
     >
       <OutlineLayers outlines={outlines} column={column} />
-      <span className={numClass(fillPeople)}>{cell.day}</span>
+      <span className={numClass(bands)}>{cell.day}</span>
     </button>
   )
 }
@@ -362,27 +366,25 @@ const OUTLINE_STEP = 3
 const CELL_RADIUS = 8
 const HALF_TINT = 0.2
 
-const personFill = (p: PersonLeave) => (p.portion === 'half' ? halfDayTint(p.colour, HALF_TINT) : p.colour)
-
-/** Background and ring for a day with leave: one colour, or equal diagonal bands for several people. */
-function leaveStyle(people: PersonLeave[]): CSSProperties | undefined {
-  if (people.length === 0) return undefined
-  if (people.length === 1) {
-    const [p] = people
+/** Background and ring for a day with filled bands: one tone, or equal diagonal bands for several. */
+function leaveStyle(bands: DayBand[]): CSSProperties | undefined {
+  if (bands.length === 0) return undefined
+  if (bands.length === 1) {
+    const [b] = bands
     return {
-      background: personFill(p),
-      color: p.portion === 'full' ? textOn(p.colour) : undefined,
-      ...(p.portion === 'half' ? { '--ring': `inset 0 0 0 1.5px ${p.colour}` } : null),
+      background: b.fill,
+      color: b.text ?? undefined,
+      ...(b.ring ? { '--ring': `inset 0 0 0 1.5px ${b.ring}` } : null),
     } as CSSProperties
   }
-  const step = 100 / people.length
-  const bands = people.map((p, i) => `${personFill(p)} ${(i * step).toFixed(2)}% ${((i + 1) * step).toFixed(2)}%`)
-  return { background: `linear-gradient(135deg, ${bands.join(', ')})` }
+  const step = 100 / bands.length
+  const stops = bands.map((b, i) => `${b.fill} ${(i * step).toFixed(2)}% ${((i + 1) * step).toFixed(2)}%`)
+  return { background: `linear-gradient(135deg, ${stops.join(', ')})` }
 }
 
-function numClass(people: PersonLeave[]): string {
-  if (people.length < 2) return 'day-num'
-  return people.every((p) => p.portion === 'full') ? 'day-num day-num--on-colour' : 'day-num day-num--pill'
+function numClass(bands: DayBand[]): string {
+  if (bands.length < 2) return 'day-num'
+  return needsPill(bands) ? 'day-num day-num--pill' : 'day-num day-num--on-colour'
 }
 
 export function Legend({
@@ -390,12 +392,15 @@ export function Legend({
   activeColour,
   showBridge = false,
   company = null,
+  calendars = [],
 }: {
   people: { id: string; name: string; colour: string; style: DayStyle }[]
   activeColour: string
   showBridge?: boolean
   /** The company whose days are shown; its colour and style set the "Company day" swatch. */
   company?: { name: string; colour: string; style: DayStyle } | null
+  /** The visible imported calendars, shown after the people. */
+  calendars?: { id: string; name: string; colour: string; style: DayStyle }[]
 }) {
   return (
     <ul className="legend" aria-label="Key">
@@ -403,6 +408,12 @@ export function Legend({
         <li key={p.id}>
           <span className="swatch" style={swatchStyle(p.colour, p.style)} />
           {p.name}
+        </li>
+      ))}
+      {calendars.map((c) => (
+        <li key={c.id}>
+          <span className="swatch" style={calendarSwatchStyle(c.colour, c.style)} />
+          {c.name}
         </li>
       ))}
       <li>
@@ -441,6 +452,12 @@ export function Legend({
     </ul>
   )
 }
+
+/** An imported calendar's swatch: an outline, or its light tint with a ring in its colour (like its cells). */
+const calendarSwatchStyle = (colour: string, style: DayStyle): CSSProperties =>
+  style === 'outline'
+    ? swatchStyle(colour, 'outline')
+    : { background: companyDayColours(colour).fill, boxShadow: `inset 0 0 0 1.5px ${colour}` }
 
 /** A legend swatch: solid for a filled style, a transparent inset border for an outline. */
 const swatchStyle = (colour: string, style: DayStyle): CSSProperties =>

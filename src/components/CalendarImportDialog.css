@@ -1,0 +1,115 @@
+/* Import calendar dialog: builds on .export-dialog (modal, bottom sheet on phones). */
+
+.import-dialog {
+  width: 520px;
+  max-height: calc(100dvh - 48px);
+}
+
+.import-dialog[open] {
+  display: flex;
+}
+
+.import-dialog .export-sheet {
+  min-height: 0;
+  width: 100%;
+}
+
+.import-sheet {
+  max-height: inherit;
+}
+
+.import-file {
+  margin: 2px 0 0;
+  font-size: 13px;
+  color: var(--c-textMuted);
+  overflow-wrap: anywhere;
+}
+
+.import-fields {
+  display: grid;
+  gap: 14px;
+}
+
+.import-events {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1;
+  gap: 6px;
+}
+
+.import-events-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.import-count {
+  font-size: 13px;
+  color: var(--c-textMuted);
+}
+
+.import-events-actions {
+  display: flex;
+  gap: 4px;
+}
+
+.import-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  min-height: 120px;
+  overflow-y: auto;
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-tile);
+}
+
+.import-list li + li {
+  border-top: 1px solid var(--c-divider);
+}
+
+.import-event {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 10px 14px;
+  cursor: pointer;
+}
+
+.import-event input {
+  flex: none;
+  margin-top: 2px;
+  width: 16px;
+  height: 16px;
+  accent-color: var(--c-text);
+}
+
+.import-event-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.import-event-name {
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+
+.import-empty {
+  margin: 0;
+}
+
+@media (max-width: 600px) {
+  .import-dialog {
+    max-height: 92dvh;
+  }
+}
+
+@media (pointer: coarse) {
+  .import-event {
+    min-height: 44px;
+    align-items: center;
+  }
+}

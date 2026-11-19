@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { buildYearView, type PersonLeaveSource, type YearView } from './calendar'
+import { buildYearView, dayBands, needsPill, type CalendarOverlaySource, type PersonLeaveSource, type YearView } from './calendar'
+import { calendarDayIndex } from './importedCalendars'
 import { companyDayIndex, NO_COMPANY_DAYS } from './companyDays'
 import { DEFAULT_SETTINGS } from './types'
 
@@ -261,5 +262,98 @@ describe('styles, joins and company', () => {
     expect(build([]).company).toBeNull()
     const company = { name: 'Acme', colour: '#2a8aa6', style: 'outline' as const }
     expect(build([], new Map(), NO_COMPANY_DAYS, company).company).toEqual(company)
+  })
+})
+
+describe('buildYearView imported calendars', () => {
+  const ev = (start: string, end: string, name: string) => ({ id: `${start}-${name}`, start, end, name })
+  const src = (id: string, events: ReturnType<typeof ev>[], over: Partial<CalendarOverlaySource> = {}): CalendarOverlaySource => ({
+    id,
+    name: id,
+    colour: '#2a8aa6',
+    style: 'fill',
+    days: calendarDayIndex(events),
+    ...over,
+  })
+  const make = (range: { start: string; end: string }, calendars: CalendarOverlaySource[], holidays = new Map<string, string>()) =>
+    buildYearView(range, DEFAULT_SETTINGS, {}, holidays, NO_COMPANY_DAYS, null, new Set(), [], null, calendars)
+  const find = (view: YearView, date: string) =>
+    view.months.flatMap((m) => m.weeks.flat()).find((c) => c?.date === date)!
+  const year = { start: '2026-01-01', end: '2026-12-31' }
+
+  it('has no marks or calendars by default', () => {
+    const view = buildYearView(year, DEFAULT_SETTINGS, {}, new Map(), NO_COMPANY_DAYS)
+    expect(view.calendars).toEqual([])
+    expect(find(view, '2026-05-04').calendars).toEqual([])
+  })
+
+  it('marks each date of a multi-day event, with joins inside a month', () => {
+    const view = make(year, [src('hols', [ev('2026-05-04', '2026-05-06', 'Half term')])])
+    expect(view.calendars).toEqual([{ id: 'hols', name: 'hols', colour: '#2a8aa6', style: 'fill' }])
+    expect(find(view, '2026-05-03').calendars).toEqual([])
+    expect(find(view, '2026-05-04').calendars[0]).toMatchObject({
+      calendarId: 'hols', events: ['Half term'], joinsPrev: false, joinsNext: true,
+    })
+    expect(find(view, '2026-05-05').calendars[0]).toMatchObject({ joinsPrev: true, joinsNext: true })
+    expect(find(view, '2026-05-06').calendars[0]).toMatchObject({ joinsPrev: true, joinsNext: false })
+  })
+
+  it('does not join across month edges', () => {
+    const view = make(year, [src('c', [ev('2026-05-31', '2026-06-01', 'Bridge')])])
+    expect(find(view, '2026-05-31').calendars[0]).toMatchObject({ joinsPrev: false, joinsNext: false })
+    expect(find(view, '2026-06-01').calendars[0]).toMatchObject({ joinsPrev: false, joinsNext: false })
+  })
+
+  it('does not mark or join out-of-range dates', () => {
+    const view = make({ start: '2026-05-05', end: '2026-05-31' }, [src('c', [ev('2026-05-04', '2026-05-06', 'X')])])
+    expect(find(view, '2026-05-04').calendars).toEqual([])
+    expect(find(view, '2026-05-05').calendars[0]).toMatchObject({ joinsPrev: false, joinsNext: true })
+  })
+
+  it('keeps calendars separate and in order, joining each independently', () => {
+    const view = make(year, [
+      src('a', [ev('2026-05-04', '2026-05-05', 'A1')]),
+      src('b', [ev('2026-05-05', '2026-05-05', 'B1')], { style: 'outline' }),
+    ])
+    expect(find(view, '2026-05-04').calendars.map((c) => c.calendarId)).toEqual(['a'])
+    const both = find(view, '2026-05-05').calendars
+    expect(both.map((c) => [c.calendarId, c.style, c.joinsPrev])).toEqual([['a', 'fill', true], ['b', 'outline', false]])
+  })
+
+  it('never changes kind, bookability or leave', () => {
+    const holidays = new Map([['2026-05-04', 'Early May']])
+    const plain = make(year, [], holidays)
+    const withCal = make(year, [src('c', [ev('2026-05-01', '2026-05-10', 'Hols')])], holidays)
+    for (const d of ['2026-05-01', '2026-05-02', '2026-05-04', '2026-05-05']) {
+      const { calendars, ...rest } = find(withCal, d)
+      const { calendars: _none, ...base } = find(plain, d)
+      expect(calendars).toHaveLength(1)
+      expect(rest).toEqual(base)
+    }
+  })
+})
+
+describe('dayBands', () => {
+  const person = (colour: string, portion: 'full' | 'half', style: 'fill' | 'outline' = 'fill') =>
+    ({ personId: colour, name: 'P', colour, style, tracksAllowance: true, portion, joinsPrev: false, joinsNext: false, overLimit: false, active: true }) as const
+  const mark = (colour: string, style: 'fill' | 'outline' = 'fill') =>
+    ({ calendarId: colour, name: 'C', colour, style, events: ['E'], joinsPrev: false, joinsNext: false }) as const
+
+  it('is empty when only outlines are present', () => {
+    expect(dayBands({ people: [person('#112233', 'full', 'outline')], calendars: [mark('#445566', 'outline')] })).toEqual([])
+  })
+
+  it('lists filled people then filled calendars', () => {
+    const bands = dayBands({ people: [person('#112233', 'full'), person('#223344', 'half')], calendars: [mark('#445566')] })
+    expect(bands.map((b) => b.light)).toEqual([false, true, true])
+    expect(bands[0]).toMatchObject({ fill: '#112233', ring: null })
+    expect(bands[1].ring).toBe('#223344')
+    expect(bands[2].ring).toBe('#445566')
+  })
+
+  it('needs a pill for several bands with a light one, not for all-full people or a single band', () => {
+    expect(needsPill(dayBands({ people: [person('#112233', 'full'), person('#223344', 'full')], calendars: [] }))).toBe(false)
+    expect(needsPill(dayBands({ people: [person('#112233', 'full')], calendars: [mark('#445566')] }))).toBe(true)
+    expect(needsPill(dayBands({ people: [], calendars: [mark('#445566')] }))).toBe(false)
   })
 })

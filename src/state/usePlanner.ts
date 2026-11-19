@@ -2,7 +2,8 @@ import { useCallback, useEffect, useMemo, useReducer } from 'react'
 import { bankHolidayIndex, coversRange } from '../domain/bankHolidays'
 import { companyDayIndex, NO_COMPANY_DAYS, type CompanyDayIndex } from '../domain/companyDays'
 import { findBridges, type Bridge } from '../domain/bridges'
-import { buildYearView, type PersonLeaveSource, type YearView } from '../domain/calendar'
+import { buildYearView, type CalendarOverlaySource, type PersonLeaveSource, type YearView } from '../domain/calendar'
+import { calendarDayIndex } from '../domain/importedCalendars'
 import { todayIso } from '../domain/dates'
 import { leaveYearAtOffset, leaveYearLabel } from '../domain/leaveYear'
 import type { Company, LeaveYearStart, Person } from '../domain/types'
@@ -28,7 +29,7 @@ export type { ExportData, ExportPersonData } from './exportData'
  */
 export function usePlanner() {
   const [state, dispatch] = useReducer(plannerReducer, undefined, () => initialState())
-  const { shared, people: peopleList, companies, editingCompanyId, yearOffset } = state
+  const { shared, people: peopleList, companies, calendars, editingCompanyId, yearOffset } = state
   const activePerson = selectActivePerson(state)
   const settings = useMemo(() => personSettings(shared, activePerson), [shared, activePerson])
   const leave = activePerson.leave
@@ -112,6 +113,17 @@ export function usePlanner() {
   /** The active person's own leave year, which differs from `range` only while editing another company's days. */
   const activeRange = activeStatus.range
 
+  /** One day index per imported calendar, rebuilt only when the calendar itself changes. */
+  const calendarIndexes = useMemo(() => new Map(calendars.map((c) => [c.id, calendarDayIndex(c.events)])), [calendars])
+  /** The visible imported calendars, in display order, for the calendar and the PNG. */
+  const calendarSources = useMemo<CalendarOverlaySource[]>(
+    () =>
+      calendars
+        .filter((c) => c.visible)
+        .map((c) => ({ id: c.id, name: c.name, colour: c.colour, style: c.style, days: calendarIndexes.get(c.id)! })),
+    [calendars, calendarIndexes],
+  )
+
   const yearView = useMemo(() => {
     const sources: PersonLeaveSource[] = people.map((p) => ({
       id: p.person.id,
@@ -135,8 +147,9 @@ export function usePlanner() {
       activeStatus.overLimit,
       sources,
       viewCompany,
+      calendarSources,
     )
-  }, [people, shared, range, settings, leave, holidays, viewCompanyDays, today, activeStatus, indexFor, viewCompany])
+  }, [people, shared, range, settings, leave, holidays, viewCompanyDays, today, activeStatus, indexFor, viewCompany, calendarSources])
 
   /** What the PNG export draws for a month span: the viewed leave year as-is, or a custom range. */
   const exportFor = useCallback(
@@ -154,9 +167,10 @@ export function usePlanner() {
         holidays,
         viewCompanyDays,
         viewCompany,
+        calendars: calendarSources,
         indexFor,
       }),
-    [range, label, yearView, people, shared, companies, today, yearOffset, holidays, viewCompanyDays, viewCompany, indexFor],
+    [range, label, yearView, people, shared, companies, today, yearOffset, holidays, viewCompanyDays, viewCompany, calendarSources, indexFor],
   )
 
   // Suggestions are computed from the active person's plan and never touch the PNG.

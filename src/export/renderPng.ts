@@ -1,8 +1,8 @@
 import type { AllowanceSummary } from '../domain/allowance'
-import type { DayCell, PersonLeave, YearView } from '../domain/calendar'
+import { BAND_TINT, dayBands, needsPill, type DayCell, type YearView } from '../domain/calendar'
 import { WEEKDAY_INITIALS_MON_FIRST } from '../domain/dates'
 import type { DayStyle } from '../domain/types'
-import { companyDayColours, halfDayTint, legendItems, palette, textOn } from '../theme'
+import { companyDayColours, halfDayTint, legendItems, palette } from '../theme'
 
 /**
  * Draws a leave year to a <canvas> for PNG export.
@@ -55,7 +55,6 @@ const MONTH_TITLE_H = 30
 const WEEKDAY_H = 22
 const FONT = 'Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif'
 const FONT_DISPLAY = '"Space Grotesk", Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif'
-const HALF_TINT = 0.2
 const CELL_RADIUS = 6
 /** Gap between nested outlines in one cell. */
 const OUTLINE_STEP = 3
@@ -156,7 +155,7 @@ function drawSwatch(
   }
 }
 
-function legendEntries(meta: ExportMeta, company: YearView['company']): LegendEntry[] {
+function legendEntries(meta: ExportMeta, company: YearView['company'], calendars: YearView['calendars']): LegendEntry[] {
   const fixed: LegendEntry[] = legendItems.map((item) => ({
     label: item.label,
     swatch: (ctx, x, y) => {
@@ -172,6 +171,10 @@ function legendEntries(meta: ExportMeta, company: YearView['company']): LegendEn
     label: 'Half day',
     swatch: (ctx, x, y) => drawHalfSwatch(ctx, x, y - 8, 16, colour),
   })
+  const calendarEntries: LegendEntry[] = calendars.map((c) => ({
+    label: c.name,
+    swatch: (ctx, x, y) => drawCalendarSwatch(ctx, x, y - 8, 16, c.colour, c.style),
+  }))
   if (meta.people.length === 1) {
     const [person] = meta.people
     const colour = person.colour
@@ -180,6 +183,7 @@ function legendEntries(meta: ExportMeta, company: YearView['company']): LegendEn
         label: person.tracksAllowance ? 'Annual leave' : person.name,
         swatch: (ctx, x, y) => drawSwatch(ctx, x, y - 8, 16, colour, person.style),
       },
+      ...calendarEntries,
       halfSwatch(colour),
       ...fixed,
     ]
@@ -189,13 +193,29 @@ function legendEntries(meta: ExportMeta, company: YearView['company']): LegendEn
       label: p.name,
       swatch: (ctx: CanvasRenderingContext2D, x: number, y: number) => drawSwatch(ctx, x, y - 8, 16, p.colour, p.style),
     })),
+    ...calendarEntries,
     halfSwatch(palette.textMuted),
     ...fixed,
   ]
 }
 
+/** An imported calendar's swatch: an outline, or its light tint with a ring in its colour (like its cells). */
+function drawCalendarSwatch(ctx: CanvasRenderingContext2D, x: number, y: number, size: number, colour: string, style: DayStyle) {
+  if (style === 'outline') {
+    drawSwatch(ctx, x, y, size, colour, 'outline')
+    return
+  }
+  ctx.fillStyle = companyDayColours(colour).fill
+  roundRect(ctx, x, y, size, size, 4)
+  ctx.fill()
+  ctx.strokeStyle = colour
+  ctx.lineWidth = 1.5
+  roundRect(ctx, x + 0.75, y + 0.75, size - 1.5, size - 1.5, 3.25)
+  ctx.stroke()
+}
+
 function drawHalfSwatch(ctx: CanvasRenderingContext2D, x: number, y: number, size: number, colour: string) {
-  ctx.fillStyle = halfDayTint(colour, HALF_TINT)
+  ctx.fillStyle = halfDayTint(colour, BAND_TINT)
   roundRect(ctx, x, y, size, size, 4)
   ctx.fill()
   ctx.strokeStyle = colour
@@ -241,7 +261,7 @@ export function renderYearToCanvas(
   const people = meta.people
   const measure = document.createElement('canvas').getContext('2d')
   if (!measure) throw new Error('Canvas 2D context unavailable')
-  const entries = legendEntries(meta, view.company)
+  const entries = legendEntries(meta, view.company, view.calendars)
   const baseWidth = computeLayout(view, options.columns, people.length).width
   const legendRows = layoutLegend(measure, entries, baseWidth - PADDING * 2).rows
   const layout = computeLayout(view, options.columns, people.length, legendRows)
@@ -419,13 +439,20 @@ export interface OutlineLayer {
   joinsNext: boolean
 }
 
-/** Outlines to draw on a day, outermost first: each outline person, then the company day if it is outlined. */
+/**
+ * Outlines to draw on a day, outermost first (the same order as the screen): the company day if it is
+ * outlined, then each outline calendar, then each outline person.
+ */
 export function outlineLayers(cell: DayCell, company: YearView['company']): OutlineLayer[] {
-  const layers: OutlineLayer[] = cell.people
-    .filter((p) => p.style === 'outline')
-    .map((p) => ({ colour: p.colour, half: p.portion === 'half', joinsPrev: p.joinsPrev, joinsNext: p.joinsNext }))
+  const layers: OutlineLayer[] = []
   if (company?.style === 'outline' && cell.kind === 'company-day') {
     layers.push({ colour: company.colour, half: false, joinsPrev: cell.companyJoinsPrev, joinsNext: cell.companyJoinsNext })
+  }
+  for (const c of cell.calendars) {
+    if (c.style === 'outline') layers.push({ colour: c.colour, half: false, joinsPrev: c.joinsPrev, joinsNext: c.joinsNext })
+  }
+  for (const p of cell.people) {
+    if (p.style === 'outline') layers.push({ colour: p.colour, half: p.portion === 'half', joinsPrev: p.joinsPrev, joinsNext: p.joinsNext })
   }
   return layers
 }
@@ -467,32 +494,28 @@ function drawDay(
   const size = CELL - inset * 2
   const left = x + inset
   const top = y + inset
-  const people: PersonLeave[] = cell.people.filter((p) => p.style === 'fill')
+  const bands = dayBands(cell)
 
   ctx.globalAlpha = cell.inRange ? 1 : 0.35
-  if (people.length === 1) {
-    const [p] = people
+  if (bands.length === 1) {
+    const [b] = bands
     roundRect(ctx, left, top, size, size, CELL_RADIUS)
-    if (p.portion === 'half') {
-      // Half day: pale tint with a ring in the person's colour (told apart by lightness, not hue).
-      ctx.fillStyle = halfDayTint(p.colour, HALF_TINT)
-      ctx.fill()
-      ctx.strokeStyle = p.colour
+    ctx.fillStyle = b.fill
+    ctx.fill()
+    if (b.ring) {
+      // Light tone (half day or calendar): a ring in its colour (told apart by lightness, not hue).
+      ctx.strokeStyle = b.ring
       ctx.lineWidth = 1.5
       roundRect(ctx, left + 0.75, top + 0.75, size - 1.5, size - 1.5, CELL_RADIUS - 0.75)
       ctx.stroke()
-    } else {
-      ctx.fillStyle = p.colour
-      ctx.fill()
     }
-  } else if (people.length > 1) {
-    // Equal diagonal bands (135 degrees), one per person.
+  } else if (bands.length > 1) {
+    // Equal diagonal bands (135 degrees), one per person or calendar.
     const g = ctx.createLinearGradient(left, top, left + size, top + size)
-    const step = 1 / people.length
-    people.forEach((p, i) => {
-      const c = p.portion === 'half' ? halfDayTint(p.colour, HALF_TINT) : p.colour
-      g.addColorStop(i * step, c)
-      g.addColorStop((i + 1) * step, c)
+    const step = 1 / bands.length
+    bands.forEach((b, i) => {
+      g.addColorStop(i * step, b.fill)
+      g.addColorStop((i + 1) * step, b.fill)
     })
     ctx.fillStyle = g
     roundRect(ctx, left, top, size, size, CELL_RADIUS)
@@ -516,15 +539,16 @@ function drawDay(
 
   const cx = x + CELL / 2
   const cy = y + CELL / 2 + 1
-  const allFull = people.length > 1 && people.every((p) => p.portion === 'full')
-  if (people.length > 1 && !allFull) {
+  const pill = needsPill(bands)
+  const allFull = bands.length > 1 && !pill
+  if (pill) {
     // Light and dark bands behind the number: give it a small light backdrop.
     ctx.fillStyle = 'rgba(255, 255, 255, 0.88)'
     roundRect(ctx, cx - 9, cy - 8, 18, 16, 8)
     ctx.fill()
   }
-  ctx.fillStyle = numberColour(cell, people, company)
-  ctx.font = `${cell.people.length > 0 || cell.kind === 'bank-holiday' || cell.kind === 'company-day' ? 600 : 500} 12px ${FONT}`
+  ctx.fillStyle = numberColour(cell, bands, company)
+  ctx.font = `${cell.people.length > 0 || cell.calendars.length > 0 || cell.kind === 'bank-holiday' || cell.kind === 'company-day' ? 600 : 500} 12px ${FONT}`
   ctx.textAlign = 'center'
   ctx.textBaseline = 'middle'
   if (allFull) {
@@ -539,10 +563,10 @@ function drawDay(
   ctx.globalAlpha = 1
 }
 
-/** Number colour; `fillPeople` are the people whose cells are filled (outline people leave the cell's own colouring). */
-function numberColour(cell: DayCell, fillPeople: PersonLeave[], company: YearView['company']): string {
-  if (fillPeople.length === 1) return fillPeople[0].portion === 'full' ? textOn(fillPeople[0].colour) : palette.text
-  if (fillPeople.length > 1) return fillPeople.every((p) => p.portion === 'full') ? '#ffffff' : palette.text
+/** Number colour; `bands` are the filled people and calendars (outlines leave the cell's own colouring). */
+function numberColour(cell: DayCell, bands: ReturnType<typeof dayBands>, company: YearView['company']): string {
+  if (bands.length === 1) return bands[0].text ?? palette.text
+  if (bands.length > 1) return needsPill(bands) ? palette.text : '#ffffff'
   if (cell.kind === 'bank-holiday') return palette.bankHolidayText
   if (cell.kind === 'company-day') {
     if (!company) return palette.companyDayText

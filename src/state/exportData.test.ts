@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { buildYearView } from '../domain/calendar'
+import { calendarDayIndex } from '../domain/importedCalendars'
 import { NO_COMPANY_DAYS } from '../domain/companyDays'
 import { monthsOfRange } from '../domain/exportRange'
 import type { MonthSpan } from '../domain/exportRange'
@@ -94,6 +95,18 @@ describe('buildExportData', () => {
       expect(p.warning).toBeNull()
       expect(p.yearLabel).toBeUndefined()
     }
+  })
+
+  it('includes visible imported calendars in a custom span', () => {
+    const span = { start: { year: 2027, month: 2 }, end: { year: 2027, month: 3 } }
+    const calendars = [
+      { id: 'hols', name: 'School', colour: '#2a8aa6', style: 'fill' as const, days: calendarDayIndex([{ id: 'e', start: '2027-02-15', end: '2027-02-16', name: 'Half term' }]) },
+    ]
+    const data = buildExportData({ ...input(span), calendars })
+    expect(data.view.calendars.map((c) => c.id)).toEqual(['hols'])
+    const cells = data.view.months.flatMap((m) => m.weeks.flat()).filter((c) => c !== null)
+    expect(cells.filter((c) => c.calendars.length > 0).map((c) => c.date)).toEqual(['2027-02-15', '2027-02-16'])
+    expect(buildExportData(input(span)).view.calendars).toEqual([])
   })
 
   it('summarises only the exported months, not the whole leave year', () => {
