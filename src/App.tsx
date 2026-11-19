@@ -37,7 +37,7 @@ function companyVars(colour: string | undefined): CSSProperties {
 }
 
 export default function App() {
-  const { state, dispatch, range, label, settings, activePerson, people, companies, editingCompany, editingCompanyIndex, viewCompany, yearView, exportFor, summary, activeLabel, activeRange, companyRanges, bridges, bridgeByDate, longestStretch, today, overEntitlementWarning, hasBankHolidayData } = usePlanner()
+  const { state, dispatch, range, label, settings, activePerson, people, companies, editingCompany, editingCompanyIndex, viewCompany, yearView, exportFor, summary, activeLabel, activeRange, activeAllowance, companyRanges, bridges, bridgeByDate, longestStretch, today, overEntitlementWarning, hasBankHolidayData } = usePlanner()
   // Same breakpoint as the phone layout in App.css.
   const phone = useMediaQuery('(max-width: 600px)')
   const [exporting, setExporting] = useState(false)
@@ -280,8 +280,8 @@ export default function App() {
             name={activePerson.name}
             colour={activePerson.colour}
             label={activeLabel}
-            allowanceDays={settings.allowanceDays}
-            carryOverDays={settings.carryOverDays}
+            allowanceDays={activeAllowance.allowanceDays}
+            carryOverDays={activeAllowance.carryOverDays}
             warning={overEntitlementWarning}
             compact={phone}
             tracksAllowance={activePerson.tracksAllowance}

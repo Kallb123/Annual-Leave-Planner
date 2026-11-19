@@ -38,6 +38,7 @@ import {
   personSettings,
   leaveYearStartFor,
   plannerReducer,
+  type PlannerAction,
   type PlannerState,
 } from './plannerState'
 
@@ -65,7 +66,7 @@ class MemoryStorage implements Storage {
 
 const DEFAULT_SHARED = splitForTest(DEFAULT_SETTINGS).shared
 
-const alice: Person = { ...DEFAULT_PERSON_SETTINGS, id: 'p1', name: 'Alice', colour: PERSON_COLOURS[0], style: 'fill', tracksAllowance: true, leave: {}, companyId: null }
+const alice: Person = { ...DEFAULT_PERSON_SETTINGS, id: 'p1', name: 'Alice', colour: PERSON_COLOURS[0], style: 'fill', tracksAllowance: true, leave: {}, allowanceByYear: {}, companyId: null }
 
 const base: PlannerState = {
   shared: DEFAULT_SHARED,
@@ -447,7 +448,7 @@ describe('plannerReducer', () => {
     it('appends, trims, gives defaults and makes the person active', () => {
       const s = plannerReducer(base, { type: 'addPerson', id: 'p2', name: '  Bob  ', colour: '#ABCDEF' })
       expect(s.people).toHaveLength(2)
-      expect(s.people[1]).toEqual({ ...DEFAULT_PERSON_SETTINGS, id: 'p2', name: 'Bob', colour: '#abcdef', style: 'fill', tracksAllowance: true, leave: {}, companyId: null })
+      expect(s.people[1]).toEqual({ ...DEFAULT_PERSON_SETTINGS, id: 'p2', name: 'Bob', colour: '#abcdef', style: 'fill', tracksAllowance: true, leave: {}, allowanceByYear: {}, companyId: null })
       expect(s.activePersonId).toBe('p2')
     })
 
@@ -561,7 +562,7 @@ describe('persistence', () => {
     }
     persist(state, storage)
     const saved = JSON.parse(storage.getItem(STORAGE_KEY)!)
-    expect(saved.version).toBe(8)
+    expect(saved.version).toBe(9)
     expect(saved).not.toHaveProperty('editingCompanyId')
     expect(saved).not.toHaveProperty('companyDays')
     expect(initialState(storage)).toEqual({ ...state, editingCompanyId: null, yearOffset: 0 })
@@ -578,6 +579,7 @@ describe('persistence', () => {
         style: 'fill',
         tracksAllowance: true,
         leave: {},
+        allowanceByYear: {},
         companyId: 'company-1',
       },
     ])
@@ -634,6 +636,7 @@ describe('persistence', () => {
         tracksAllowance: true,
         allowanceDays: 28,
         workingDays: [1, 2, 3],
+        allowanceByYear: {},
         bankHolidaysDeducted: true,
         leave: v1.leave,
         companyId: 'company-1',
@@ -665,12 +668,12 @@ describe('persistence', () => {
       expect(restored.people[0].companyId).toBe('company-1')
     })
 
-    it('rewrites as v8 on the next persist', () => {
+    it('rewrites as v9 on the next persist', () => {
       const storage = new MemoryStorage()
       storage.setItem(STORAGE_KEY, JSON.stringify(v1))
       persist(initialState(storage), storage)
       const saved = JSON.parse(storage.getItem(STORAGE_KEY)!)
-      expect(saved.version).toBe(8)
+      expect(saved.version).toBe(9)
       expect(saved.companies).toEqual([{ id: 'company-1', name: 'My company', colour: '#6f5bb8', style: 'fill', leaveYearStartMonth: 1, leaveYearStartDay: 1, days: [] }])
       expect(saved.people[0].leave).toEqual(v1.leave)
       expect(saved).not.toHaveProperty('settings')
@@ -892,7 +895,7 @@ describe('plan import/export', () => {
     for (const json of ['null', '42', '"plan"', '[]', '{}', '{"version":0}', '{"version":"5"}']) {
       expect(reason(json)).toBe('not-a-plan')
     }
-    expect(reason('{"version":9}')).toBe('newer-version')
+    expect(reason('{"version":10}')).toBe('newer-version')
     const newer = parsePlan('{"version":99}')
     expect(!newer.ok && newer.message).toMatch(/newer version/)
   })
@@ -978,7 +981,7 @@ describe('fortnightly working pattern', () => {
     const person = { ...alice, workingDaysWeek2: [1, 2, 3, 4], fortnightStart: '2026-11-16' }
     const state: PlannerState = { ...base, people: [person], activePersonId: person.id }
     const json = serialisePlan(state)
-    expect(JSON.parse(json).version).toBe(8)
+    expect(JSON.parse(json).version).toBe(9)
     const parsed = parsePlan(json)
     expect(parsed.ok && parsed.plan.people[0]).toMatchObject({ workingDaysWeek2: [1, 2, 3, 4], fortnightStart: '2026-11-16' })
   })
@@ -1415,7 +1418,7 @@ describe('imported calendars', () => {
   })
 
   describe('persistence', () => {
-    it('round-trips through serialisePlan and parsePlan as v8', () => {
+    it('round-trips through serialisePlan and parsePlan as v9', () => {
       const state: PlannerState = { ...withCal, calendars: [holidays, { ...holidays, id: 'cal2', visible: false, style: 'fill' }] }
       const json = serialisePlan(state)
       expect(JSON.parse(json).calendars).toEqual(state.calendars)
@@ -1484,7 +1487,7 @@ describe('imported calendars', () => {
     })
 
     it('still rejects newer versions', () => {
-      const r = parsePlan('{"version":9}')
+      const r = parsePlan('{"version":10}')
       expect(!r.ok && r.reason).toBe('newer-version')
     })
   })
@@ -1502,6 +1505,111 @@ describe('imported calendars', () => {
       expect(none).toBe('1 person (Alice), 0 days booked, 0 companies with 0 company days')
       expect(describePlan({ ...base, calendars: [holidays] })).toBe(`${none}, 1 imported calendar`)
       expect(describePlan({ ...base, calendars: [holidays, { ...holidays, id: 'c2' }] })).toBe(`${none}, 2 imported calendars`)
+    })
+  })
+})
+
+describe('per-year allowance', () => {
+  const set = (state: PlannerState, action: Partial<Extract<PlannerAction, { type: 'setYearAllowance' }>>) =>
+    plannerReducer(state, { type: 'setYearAllowance', id: 'p1', year: '2026', ...action })
+  const by = (state: PlannerState) => state.people[0].allowanceByYear
+
+  it('new people start with no overrides', () => {
+    const s = plannerReducer(base, { type: 'addPerson', id: 'p2', name: 'Bob' })
+    expect(s.people[1].allowanceByYear).toEqual({})
+  })
+
+  it('sets allowance and carry-over, leaving the defaults alone', () => {
+    const s = set(base, { allowanceDays: 30, carryOverDays: 2 })
+    expect(by(s)).toEqual({ '2026': { allowanceDays: 30, carryOverDays: 2 } })
+    expect(s.people[0].allowanceDays).toBe(alice.allowanceDays)
+  })
+
+  it('leaves undefined fields unchanged', () => {
+    const s1 = set(base, { allowanceDays: 30 })
+    const s2 = set(s1, { carryOverDays: 4 })
+    expect(by(s2)).toEqual({ '2026': { allowanceDays: 30, carryOverDays: 4 } })
+  })
+
+  it('null removes one override', () => {
+    const s = set(set(base, { allowanceDays: 30, carryOverDays: 4 }), { allowanceDays: null })
+    expect(by(s)).toEqual({ '2026': { carryOverDays: 4 } })
+  })
+
+  it('drops the entry once it has no fields', () => {
+    const s = set(set(base, { allowanceDays: 30 }), { allowanceDays: null })
+    expect(by(s)).toEqual({})
+  })
+
+  it('sanitises values', () => {
+    expect(by(set(base, { allowanceDays: 25.3 }))['2026'].allowanceDays).toBe(25.5)
+    expect(by(set(base, { allowanceDays: -1 }))['2026'].allowanceDays).toBe(0)
+    expect(by(set(base, { allowanceDays: 999 }))['2026'].allowanceDays).toBe(366)
+    expect(by(set(base, { allowanceDays: NaN }))).toEqual({})
+  })
+
+  it('ignores invalid years and unknown people', () => {
+    expect(set(base, { year: '26', allowanceDays: 30 })).toBe(base)
+    expect(set(base, { year: '2026/27', allowanceDays: 30 })).toBe(base)
+    expect(set(base, { id: 'nobody', allowanceDays: 30 })).toBe(base)
+  })
+
+  it('only changes the named person', () => {
+    const two = plannerReducer(base, { type: 'addPerson', id: 'p2', name: 'Bob' })
+    const s = set(two, { allowanceDays: 30 })
+    expect(s.people[1].allowanceByYear).toEqual({})
+  })
+
+  it('keeps overrides through setPersonTracksAllowance and replacePlan round trips', () => {
+    const s = plannerReducer(set(base, { allowanceDays: 30 }), { type: 'setPersonTracksAllowance', id: 'p1', tracksAllowance: false })
+    expect(by(s)).toEqual({ '2026': { allowanceDays: 30 } })
+  })
+
+  describe('persistence', () => {
+    it('round-trips v9 through serialisePlan and parsePlan', () => {
+      const state = set(base, { allowanceDays: 30, carryOverDays: 1.5 })
+      const json = serialisePlan(state)
+      expect(JSON.parse(json).version).toBe(9)
+      const parsed = parsePlan(json)
+      expect(parsed.ok && parsed.plan.people[0].allowanceByYear).toEqual({ '2026': { allowanceDays: 30, carryOverDays: 1.5 } })
+    })
+
+    it('migrates v8 plans with no overrides', () => {
+      const m = migrateStored({ version: 8, shared: {}, people: [{ id: 'a', allowanceDays: 28 }], activePersonId: 'a', companies: [], calendars: [] })!
+      expect(m.people[0].allowanceByYear).toEqual({})
+      expect(m.people[0].allowanceDays).toBe(28)
+    })
+
+    it('migrates older versions with no overrides', () => {
+      const m = migrateStored({ version: 3, shared: {}, people: [{ id: 'a' }], activePersonId: 'a' })!
+      expect(m.people[0].allowanceByYear).toEqual({})
+      const v1 = migrateStored({ version: 1, settings: {}, leave: {} })!
+      expect(v1.people[0].allowanceByYear).toEqual({})
+    })
+
+    it('sanitises junk allowanceByYear', () => {
+      const load = (allowanceByYear: unknown) =>
+        migrateStored({ version: 9, shared: {}, people: [{ id: 'a', allowanceByYear }], activePersonId: 'a', companies: [], calendars: [] })!.people[0].allowanceByYear
+      expect(load('nope')).toEqual({})
+      expect(load([1, 2])).toEqual({})
+      expect(load(null)).toEqual({})
+      expect(
+        load({
+          '2026': { allowanceDays: 25.3, carryOverDays: 'x', extra: 1 },
+          '26': { allowanceDays: 5 },
+          'abcd': { allowanceDays: 5 },
+          '2027': {},
+          '2028': 'bad',
+          '2029': { carryOverDays: -4 },
+          '2030': { allowanceDays: 999 },
+        }),
+      ).toEqual({ '2026': { allowanceDays: 25.5 }, '2029': { carryOverDays: 0 }, '2030': { allowanceDays: 366 } })
+    })
+
+    it('caps the number of overrides', () => {
+      const many = Object.fromEntries(Array.from({ length: 300 }, (_, i) => [String(1800 + i), { allowanceDays: 1 }]))
+      const m = migrateStored({ version: 9, shared: {}, people: [{ id: 'a', allowanceByYear: many }], activePersonId: 'a', companies: [], calendars: [] })!
+      expect(Object.keys(m.people[0].allowanceByYear)).toHaveLength(200)
     })
   })
 })

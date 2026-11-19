@@ -42,6 +42,7 @@ const person = (id: string, companyId: string | null): Person => ({
   style: 'fill',
   tracksAllowance: true,
   leave,
+  allowanceByYear: {},
   companyId,
 })
 

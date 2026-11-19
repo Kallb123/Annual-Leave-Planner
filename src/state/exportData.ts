@@ -5,7 +5,9 @@ import type { CompanyDayIndex } from '../domain/companyDays'
 import type { IsoDate } from '../domain/dates'
 import { monthsOfRange, rangeOfMonths, sameMonthSpan, type MonthSpan } from '../domain/exportRange'
 import type { Company, DateRange, Person, SharedSettings } from '../domain/types'
-import { personSettings } from './plannerState'
+import { leaveYearContaining } from '../domain/leaveYear'
+import { settingsForLeaveYear } from '../domain/yearAllowance'
+import { leaveYearStartFor, personSettings } from './plannerState'
 import { personStatus, type PersonStatus } from './personStatus'
 
 export interface ExportPersonData {
@@ -116,9 +118,14 @@ export function buildExportData(input: ExportDataInput): ExportData {
     isLeaveYear: false,
     people: statuses.map((s) => ({
       person: s.person,
+      // A custom span can straddle leave years: use the allowance of the one containing its start.
       summary: summarise(
         exportRange,
-        personSettings(shared, s.person),
+        settingsForLeaveYear(
+          personSettings(shared, s.person),
+          s.person.allowanceByYear,
+          leaveYearContaining(exportRange.start, leaveYearStartFor(shared, companies, s.person)),
+        ),
         s.person.leave,
         holidays,
         indexFor(s.person),

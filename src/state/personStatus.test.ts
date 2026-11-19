@@ -39,6 +39,7 @@ const person = (id: string, name: string, companyId: string | null, extra: Parti
   style: 'fill',
   tracksAllowance: true,
   leave,
+  allowanceByYear: {},
   companyId,
   ...extra,
 })
@@ -208,5 +209,43 @@ describe('personStatus: a migrated older plan keeps its totals', () => {
     })
     expect(status.range).toEqual({ start: '2026-04-01', end: '2027-03-31' })
     expect(status.summary.booked).toBe(10)
+  })
+})
+
+describe('personStatus: per-year allowance overrides', () => {
+  // `jan`'s leave year is the calendar year; `apr`'s 2026/27 holds all ten booked days (allowance 8).
+  it("applies an override to that year's summary and over-limit days only", () => {
+    const view = { start: '2026-04-01', end: '2027-03-31' }
+    const plain = personStatus(input(apr, { view }))
+    expect(plain.summary.entitlement).toBe(8)
+    expect(plain.allowance).toEqual({ allowanceDays: 8, carryOverDays: 0, allowanceOverridden: false, carryOverOverridden: false })
+    expect(plain.overLimit.size).toBe(2)
+
+    const boosted = { ...apr, allowanceByYear: { '2026': { allowanceDays: 10, carryOverDays: 1 } } }
+    const s = personStatus(input(boosted, { view }))
+    expect(s.summary.entitlement).toBe(11)
+    expect(s.summary.remaining).toBe(1)
+    expect(s.warning).toBeNull()
+    expect(s.overLimit.size).toBe(0)
+    expect(s.allowance).toEqual({ allowanceDays: 10, carryOverDays: 1, allowanceOverridden: true, carryOverOverridden: true })
+  })
+
+  it('does not affect other leave years', () => {
+    const boosted = { ...apr, allowanceByYear: { '2026': { allowanceDays: 10 } } }
+    const next = personStatus(input(boosted, { yearOffset: 1 }))
+    expect(next.range.start).toBe('2027-04-01')
+    expect(next.summary.entitlement).toBe(8)
+    expect(next.allowance.allowanceOverridden).toBe(false)
+  })
+
+  it('gives each leave year in view its own entitlement for over-limit days', () => {
+    // Jan-start years: put 5 days in 2026 and 5 in 2027, allowance 4 in 2026 but 5 in 2027.
+    const mixed: LeaveEntries = {
+      '2026-02-02': 'full', '2026-02-03': 'full', '2026-02-04': 'full', '2026-02-05': 'full', '2026-02-06': 'full',
+      '2027-02-01': 'full', '2027-02-02': 'full', '2027-02-03': 'full', '2027-02-04': 'full', '2027-02-05': 'full',
+    }
+    const p = { ...jan, leave: mixed, allowanceByYear: { '2026': { allowanceDays: 4 }, '2027': { allowanceDays: 5 } } }
+    const s = personStatus(input(p, { view: { start: '2026-01-01', end: '2027-12-31' } }))
+    expect([...s.overLimit]).toEqual(['2026-02-06'])
   })
 })

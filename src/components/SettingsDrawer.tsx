@@ -6,6 +6,7 @@ import { StyleField } from './StyleControls'
 import { newId } from './newId'
 import { formatBridgeDates } from '../domain/bridges'
 import { MONTH_NAMES, daysInMonth, todayIso } from '../domain/dates'
+import { yearAllowanceFor, leaveYearKey } from '../domain/yearAllowance'
 import { fortnightStartFor, fortnightWeek, mondayOf } from '../domain/workPattern'
 import {
   PERSON_NAME_MAX,
@@ -198,7 +199,14 @@ function PeopleTab({ settings, activePerson, people, companies, range, label, di
   const name = activePerson.name
   const colour = activePerson.colour
   const colourIsPreset = PERSON_COLOURS.some((c) => c === colour.toLowerCase())
-  const entitlement = settings.allowanceDays + settings.carryOverDays
+  const yearAllowance = yearAllowanceFor(settings, activePerson.allowanceByYear, range)
+  const entitlement = yearAllowance.allowanceDays + yearAllowance.carryOverDays
+  const yearKey = leaveYearKey(range)
+  // Typing the default figure back in drops the override rather than storing a copy of it.
+  const setYear = (field: 'allowanceDays' | 'carryOverDays', value: number) =>
+    dispatch({ type: 'setYearAllowance', id: activePerson.id, year: yearKey, [field]: value === settings[field] ? null : value })
+  const resetToDefault = (field: 'allowanceDays' | 'carryOverDays') =>
+    dispatch({ type: 'setYearAllowance', id: activePerson.id, year: yearKey, [field]: null })
 
   const [nameDraft, setNameDraft] = useState<string | null>(null)
   const commitName = () => {
@@ -328,13 +336,35 @@ function PeopleTab({ settings, activePerson, people, companies, range, label, di
         <h2 id="drawer-allowance-h" className="section-label">
           {name}’s allowance
         </h2>
+        <h3 className="drawer-subhead">This leave year ({label})</h3>
         <div className="drawer-grid-2">
-          <DayCountInput label="Annual allowance" suffix="days" value={settings.allowanceDays} onCommit={(allowanceDays) => update({ allowanceDays })} />
-          <DayCountInput label="Carried over" suffix="days" value={settings.carryOverDays} onCommit={(carryOverDays) => update({ carryOverDays })} />
+          <div className="year-allowance-field">
+            <DayCountInput label="Allowance" suffix="days" value={yearAllowance.allowanceDays} onCommit={(v) => setYear('allowanceDays', v)} />
+            {yearAllowance.allowanceOverridden && (
+              <button type="button" className="btn btn-link" onClick={() => resetToDefault('allowanceDays')}>
+                Use default ({fmt(settings.allowanceDays)} days)
+              </button>
+            )}
+          </div>
+          <div className="year-allowance-field">
+            <DayCountInput label="Carried over" suffix="days" value={yearAllowance.carryOverDays} onCommit={(v) => setYear('carryOverDays', v)} />
+            {yearAllowance.carryOverOverridden && (
+              <button type="button" className="btn btn-link" onClick={() => resetToDefault('carryOverDays')}>
+                Use default ({fmt(settings.carryOverDays)} days)
+              </button>
+            )}
+          </div>
         </div>
         <p className="drawer-note">
           Entitlement for {label}: <strong>{fmt(entitlement)} days</strong>
         </p>
+
+        <h3 className="drawer-subhead">Default for every year</h3>
+        <div className="drawer-grid-2">
+          <DayCountInput label="Allowance" suffix="days" value={settings.allowanceDays} onCommit={(allowanceDays) => update({ allowanceDays })} />
+          <DayCountInput label="Carried over" suffix="days" value={settings.carryOverDays} onCommit={(carryOverDays) => update({ carryOverDays })} />
+        </div>
+        <p className="hint">Used for any leave year without its own figures.</p>
 
         <WorkingPattern settings={settings} update={update} />
 

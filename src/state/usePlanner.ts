@@ -214,6 +214,8 @@ export function usePlanner() {
     yearView,
     exportFor,
     summary: activeStatus.summary,
+    /** The active person's allowance and carry-over for their leave year, and which are overridden. */
+    activeAllowance: activeStatus.allowance,
     /** The active person's leave year label, for their summary (may differ from `label` in company-day mode). */
     activeLabel: activeStatus.label,
     activeRange,
