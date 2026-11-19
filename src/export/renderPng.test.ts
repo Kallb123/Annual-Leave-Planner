@@ -76,6 +76,11 @@ describe('summaryParts', () => {
     expect(summaryParts({ summary, tracksAllowance: false, yearLabel: '2026/27' }, false).map((p) => p.text)).toEqual(['2026/27', 'Marked 4.5'])
   })
 
+  it('shows only the days booked when the image covers chosen months rather than a leave year', () => {
+    expect(summaryParts({ summary, tracksAllowance: true, countsOnly: true }, true).map((p) => p.text)).toEqual(['Booked 4.5'])
+    expect(summaryParts({ summary, tracksAllowance: false, countsOnly: true }, true).map((p) => p.text)).toEqual(['Marked 4.5'])
+  })
+
   it('shows only "Marked n" for someone who just marks dates', () => {
     expect(summaryParts({ summary, tracksAllowance: false }, true).map((p) => p.text)).toEqual(['Marked 4.5'])
     expect(summaryParts({ summary, tracksAllowance: false }, false).map((p) => p.text)).toEqual(['Marked 4.5'])

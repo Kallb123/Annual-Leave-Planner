@@ -1,6 +1,7 @@
 import { useCallback, useState, type CSSProperties } from 'react'
 import { BridgeSuggestions } from './components/BridgeSuggestions'
 import { CompaniesBar, ModeToggle } from './components/CompaniesBar'
+import { ExportDialog } from './components/ExportDialog'
 import type { CompanyDayChoice } from './components/CompanyDayPopover'
 import { ChevronLeftIcon, ChevronRightIcon, DownloadIcon, LogoMark, SettingsIcon } from './components/Icons'
 import { newId } from './components/newId'
@@ -11,6 +12,7 @@ import { UpdateBanner } from './components/UpdateBanner'
 import { Legend, YearCalendar } from './components/YearCalendar'
 import type { Bridge } from './domain/bridges'
 import { formatBridgeDates } from './domain/bridges'
+import { formatMonthSpan, monthSpanSlug, monthsOfRange, type MonthSpan } from './domain/exportRange'
 import { REGIONS, type LeavePortion } from './domain/types'
 import { downloadCanvasAsPng, downloadJson } from './export/download'
 import { loadExportFonts, renderYearToCanvas } from './export/renderPng'
@@ -28,10 +30,11 @@ function companyVars(colour: string | undefined): CSSProperties {
 }
 
 export default function App() {
-  const { state, dispatch, range, label, settings, activePerson, people, companies, editingCompany, editingCompanyIndex, viewCompany, yearView, summary, activeLabel, activeRange, companyRanges, bridges, bridgeByDate, overEntitlementWarning, hasBankHolidayData } = usePlanner()
+  const { state, dispatch, range, label, settings, activePerson, people, companies, editingCompany, editingCompanyIndex, viewCompany, yearView, exportFor, summary, activeLabel, activeRange, companyRanges, bridges, bridgeByDate, overEntitlementWarning, hasBankHolidayData } = usePlanner()
   // Same breakpoint as the phone layout in App.css.
   const phone = useMediaQuery('(max-width: 600px)')
   const [exporting, setExporting] = useState(false)
+  const [exportOpen, setExportOpen] = useState(false)
   const [importError, setImportError] = useState<string | null>(null)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [settingsTab, setSettingsTab] = useState<SettingsTab>('people')
@@ -70,24 +73,28 @@ export default function App() {
     setSettingsOpen(true)
   }
 
-  async function exportPng() {
+  async function exportPng(span: MonthSpan) {
     setExporting(true)
     try {
+      const data = exportFor(span)
       await loadExportFonts()
-      const canvas = renderYearToCanvas(yearView, {
-        title: `Annual leave ${label}`,
-        subtitle: `${formatBridgeDates(range.start, range.end)} · ${regionLabel}`,
-        people: people.map((p) => ({
+      const canvas = renderYearToCanvas(data.view, {
+        title: data.isLeaveYear ? `Annual leave ${label}` : `Annual leave ${formatMonthSpan(span)}`,
+        subtitle: `${formatBridgeDates(data.range.start, data.range.end)} · ${regionLabel}`,
+        people: data.people.map((p) => ({
           name: p.person.name,
           colour: p.person.colour,
           style: p.person.style,
           tracksAllowance: p.person.tracksAllowance,
           summary: p.summary,
           warning: p.warning ?? undefined,
-          yearLabel: p.label !== label ? p.label : undefined,
+          yearLabel: p.yearLabel,
+          countsOnly: !data.isLeaveYear,
         })),
       })
-      await downloadCanvasAsPng(canvas, `annual-leave-${label.replace('/', '-')}.png`)
+      const slug = data.isLeaveYear ? label.replace('/', '-') : monthSpanSlug(span)
+      await downloadCanvasAsPng(canvas, `annual-leave-${slug}.png`)
+      setExportOpen(false)
     } finally {
       setExporting(false)
     }
@@ -161,7 +168,7 @@ export default function App() {
               <button type="button" className="btn btn-ghost icon-btn" aria-label="Settings" onClick={() => openSettings()}>
                 <SettingsIcon size={20} />
               </button>
-              <button type="button" className="btn btn-primary icon-btn" aria-label={exporting ? 'Exporting PNG' : 'Download PNG'} onClick={exportPng} disabled={exporting}>
+              <button type="button" className="btn btn-primary icon-btn" aria-label={exporting ? 'Exporting PNG' : 'Download PNG'} onClick={() => setExportOpen(true)} disabled={exporting}>
                 <DownloadIcon size={18} />
               </button>
             </>
@@ -171,7 +178,7 @@ export default function App() {
                 <SettingsIcon />
                 Settings
               </button>
-              <button type="button" className="btn btn-primary" onClick={exportPng} disabled={exporting}>
+              <button type="button" className="btn btn-primary" onClick={() => setExportOpen(true)} disabled={exporting}>
                 <DownloadIcon />
                 {exporting ? 'Exporting…' : 'Download PNG'}
               </button>
@@ -181,6 +188,15 @@ export default function App() {
       </header>
 
       <UpdateBanner />
+
+      <ExportDialog
+        open={exportOpen}
+        defaultSpan={monthsOfRange(range)}
+        leaveYearLabel={label}
+        exporting={exporting}
+        onExport={exportPng}
+        onClose={() => setExportOpen(false)}
+      />
 
       <div className="layout">
         {phone ? (

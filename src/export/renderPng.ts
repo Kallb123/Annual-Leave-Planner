@@ -25,6 +25,11 @@ export interface ExportPerson {
   warning?: string
   /** This person's leave year, when it differs from the one the calendar shows (e.g. "2026/27"). */
   yearLabel?: string
+  /**
+   * The image covers chosen months rather than a leave year: show only the days booked or
+   * marked in them, since an entitlement and what remains of it only make sense per leave year.
+   */
+  countsOnly?: boolean
 }
 
 export interface ExportMeta {
@@ -293,10 +298,11 @@ export function renderYearToCanvas(
 }
 
 /** Header figures for one person: "Marked n" alone for someone with no allowance. */
-export function summaryParts(person: Pick<ExportPerson, 'summary' | 'tracksAllowance' | 'yearLabel'>, withEntitlement: boolean) {
+export function summaryParts(person: Pick<ExportPerson, 'summary' | 'tracksAllowance' | 'yearLabel' | 'countsOnly'>, withEntitlement: boolean) {
   const s = person.summary
   const year = person.yearLabel ? [{ text: person.yearLabel, color: palette.textMuted }] : []
   if (!person.tracksAllowance) return [...year, { text: `Marked ${fmt(s.booked)}`, color: palette.text }]
+  if (person.countsOnly) return [...year, { text: `Booked ${fmt(s.booked)}`, color: palette.text }]
   return [
     ...year,
     ...(withEntitlement ? [{ text: `Entitlement ${fmt(s.entitlement)}`, color: palette.text }] : []),
