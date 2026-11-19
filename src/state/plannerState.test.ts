@@ -29,6 +29,7 @@ import {
   sanitiseSettings,
   serialisePlan,
   personSettings,
+  leaveYearStartFor,
   plannerReducer,
   type PlannerState,
 } from './plannerState'
@@ -76,7 +77,7 @@ function single(opts: { leave?: LeaveEntries; settings?: Partial<Settings>; comp
     ...base,
     shared,
     people: [{ ...alice, ...person, leave: opts.leave ?? {}, companyId: opts.companyDays ? 'co1' : null }],
-    companies: opts.companyDays ? [{ id: 'co1', name: 'Acme', colour: '#6f5bb8', style: 'fill', days: opts.companyDays }] : [],
+    companies: opts.companyDays ? [{ id: 'co1', name: 'Acme', colour: '#6f5bb8', style: 'fill', leaveYearStartMonth: eff.leaveYearStartMonth, leaveYearStartDay: eff.leaveYearStartDay, days: opts.companyDays }] : [],
   }
 }
 
@@ -173,8 +174,8 @@ describe('plannerReducer', () => {
       const two: PlannerState = {
         ...twoPeople,
         companies: [
-          { id: 'co1', name: 'Acme', colour: '#6f5bb8', style: 'fill', days: [closure] },
-          { id: 'co2', name: 'Beta', colour: '#6f5bb8', style: 'fill', days: [] },
+          { id: 'co1', name: 'Acme', colour: '#6f5bb8', style: 'fill', leaveYearStartMonth: 1, leaveYearStartDay: 1, days: [closure] },
+          { id: 'co2', name: 'Beta', colour: '#6f5bb8', style: 'fill', leaveYearStartMonth: 1, leaveYearStartDay: 1, days: [] },
         ],
         people: [
           { ...alice, companyId: 'co1' },
@@ -236,14 +237,14 @@ describe('plannerReducer', () => {
   describe('companies', () => {
     const withCo: PlannerState = {
       ...twoPeople,
-      companies: [{ id: 'co1', name: 'Acme', colour: '#6f5bb8', style: 'fill', days: [] }],
+      companies: [{ id: 'co1', name: 'Acme', colour: '#6f5bb8', style: 'fill', leaveYearStartMonth: 1, leaveYearStartDay: 1, days: [] }],
       people: [{ ...alice, companyId: 'co1' }, { ...twoPeople.people[1], companyId: 'co1' }],
     }
     const daysOf = (st: PlannerState, id = 'co1') => st.companies.find((c) => c.id === id)!.days
 
     it('adds a company, starts editing it and adopts it for a person with none', () => {
       const s = plannerReducer(base, { type: 'addCompany', id: 'co1', name: '  Acme  ' })
-      expect(s.companies).toEqual([{ id: 'co1', name: 'Acme', colour: '#6f5bb8', style: 'fill', days: [] }])
+      expect(s.companies).toEqual([{ id: 'co1', name: 'Acme', colour: '#6f5bb8', style: 'fill', leaveYearStartMonth: 1, leaveYearStartDay: 1, days: [] }])
       expect(s.editingCompanyId).toBe('co1')
       expect(s.people[0].companyId).toBe('co1')
     })
@@ -267,7 +268,7 @@ describe('plannerReducer', () => {
       expect(plannerReducer(withCo, { type: 'addCompany', id: 'co1', name: 'Again' })).toBe(withCo)
       const full: PlannerState = {
         ...base,
-        companies: Array.from({ length: MAX_COMPANIES }, (_, i) => ({ id: `c${i}`, name: `C${i}`, colour: '#6f5bb8', style: 'fill', days: [] })),
+        companies: Array.from({ length: MAX_COMPANIES }, (_, i) => ({ id: `c${i}`, name: `C${i}`, colour: '#6f5bb8', style: 'fill', leaveYearStartMonth: 1, leaveYearStartDay: 1, days: [] })),
       }
       expect(plannerReducer(full, { type: 'addCompany', id: 'extra', name: 'Extra' })).toBe(full)
     })
@@ -294,7 +295,7 @@ describe('plannerReducer', () => {
     it('keeps edit mode on another company when one is removed', () => {
       const two: PlannerState = {
         ...withCo,
-        companies: [...withCo.companies, { id: 'co2', name: 'Beta', colour: '#6f5bb8', style: 'fill', days: [] }],
+        companies: [...withCo.companies, { id: 'co2', name: 'Beta', colour: '#6f5bb8', style: 'fill', leaveYearStartMonth: 1, leaveYearStartDay: 1, days: [] }],
         editingCompanyId: 'co2',
       }
       expect(plannerReducer(two, { type: 'removeCompany', id: 'co1' }).editingCompanyId).toBe('co2')
@@ -366,7 +367,7 @@ describe('plannerReducer', () => {
     })
 
     it('selectors resolve a person company', () => {
-      const cs: Company[] = [{ id: 'co1', name: 'Acme', colour: '#6f5bb8', style: 'fill', days: [closure] }]
+      const cs: Company[] = [{ id: 'co1', name: 'Acme', colour: '#6f5bb8', style: 'fill', leaveYearStartMonth: 1, leaveYearStartDay: 1, days: [closure] }]
       expect(companyOf(cs, { companyId: 'co1' })).toBe(cs[0])
       expect(companyOf(cs, { companyId: null })).toBeUndefined()
       expect(companyOf(cs, { companyId: 'gone' })).toBeUndefined()
@@ -434,7 +435,7 @@ describe('plannerReducer', () => {
     })
 
     it('leaves company-day mode, since the new person is now selected', () => {
-      const s = plannerReducer({ ...base, companies: [{ id: 'co1', name: 'Acme', colour: '#6f5bb8', style: 'fill', days: [] }], editingCompanyId: 'co1' }, { type: 'addPerson', id: 'p2', name: 'Bob' })
+      const s = plannerReducer({ ...base, companies: [{ id: 'co1', name: 'Acme', colour: '#6f5bb8', style: 'fill', leaveYearStartMonth: 1, leaveYearStartDay: 1, days: [] }], editingCompanyId: 'co1' }, { type: 'addPerson', id: 'p2', name: 'Bob' })
       expect(s.editingCompanyId).toBeNull()
     })
 
@@ -534,15 +535,15 @@ describe('persistence', () => {
       ],
       activePersonId: 'p2',
       companies: [
-        { id: 'co1', name: 'Acme', colour: '#6f5bb8', style: 'fill', days: [closure] },
-        { id: 'co2', name: 'Beta', colour: '#6f5bb8', style: 'fill', days: [] },
+        { id: 'co1', name: 'Acme', colour: '#6f5bb8', style: 'fill', leaveYearStartMonth: 1, leaveYearStartDay: 1, days: [closure] },
+        { id: 'co2', name: 'Beta', colour: '#6f5bb8', style: 'fill', leaveYearStartMonth: 1, leaveYearStartDay: 1, days: [] },
       ],
       editingCompanyId: 'co2',
       yearOffset: 2,
     }
     persist(state, storage)
     const saved = JSON.parse(storage.getItem(STORAGE_KEY)!)
-    expect(saved.version).toBe(6)
+    expect(saved.version).toBe(7)
     expect(saved).not.toHaveProperty('editingCompanyId')
     expect(saved).not.toHaveProperty('companyDays')
     expect(initialState(storage)).toEqual({ ...state, editingCompanyId: null, yearOffset: 0 })
@@ -562,7 +563,7 @@ describe('persistence', () => {
         companyId: 'company-1',
       },
     ])
-    expect(s.companies).toEqual([{ id: 'company-1', name: 'My company', colour: '#6f5bb8', style: 'fill', days: [] }])
+    expect(s.companies).toEqual([{ id: 'company-1', name: 'My company', colour: '#6f5bb8', style: 'fill', leaveYearStartMonth: 1, leaveYearStartDay: 1, days: [] }])
     expect(s.editingCompanyId).toBeNull()
     expect(s.activePersonId).toBe('person-1')
     expect(s.shared).toEqual(DEFAULT_SHARED)
@@ -628,7 +629,7 @@ describe('persistence', () => {
       storage.setItem(STORAGE_KEY, JSON.stringify(v1))
       const restored = initialState(storage)
       expectOnePerson(restored)
-      expect(restored.companies).toEqual([{ id: 'company-1', name: 'My company', colour: '#6f5bb8', style: 'fill', days: [] }])
+      expect(restored.companies).toEqual([{ id: 'company-1', name: 'My company', colour: '#6f5bb8', style: 'fill', leaveYearStartMonth: 1, leaveYearStartDay: 1, days: [] }])
     })
 
     it('ignores a stray companyDays field on v1 data', () => {
@@ -642,17 +643,17 @@ describe('persistence', () => {
       storage.setItem(STORAGE_KEY, JSON.stringify({ ...v1, version: 2, companyDays: [closure] }))
       const restored = initialState(storage)
       expectOnePerson(restored)
-      expect(restored.companies).toEqual([{ id: 'company-1', name: 'My company', colour: '#6f5bb8', style: 'fill', days: [closure] }])
+      expect(restored.companies).toEqual([{ id: 'company-1', name: 'My company', colour: '#6f5bb8', style: 'fill', leaveYearStartMonth: 1, leaveYearStartDay: 1, days: [closure] }])
       expect(restored.people[0].companyId).toBe('company-1')
     })
 
-    it('rewrites as v6 on the next persist', () => {
+    it('rewrites as v7 on the next persist', () => {
       const storage = new MemoryStorage()
       storage.setItem(STORAGE_KEY, JSON.stringify(v1))
       persist(initialState(storage), storage)
       const saved = JSON.parse(storage.getItem(STORAGE_KEY)!)
-      expect(saved.version).toBe(6)
-      expect(saved.companies).toEqual([{ id: 'company-1', name: 'My company', colour: '#6f5bb8', style: 'fill', days: [] }])
+      expect(saved.version).toBe(7)
+      expect(saved.companies).toEqual([{ id: 'company-1', name: 'My company', colour: '#6f5bb8', style: 'fill', leaveYearStartMonth: 1, leaveYearStartDay: 1, days: [] }])
       expect(saved.people[0].leave).toEqual(v1.leave)
       expect(saved).not.toHaveProperty('settings')
       expect(saved).not.toHaveProperty('leave')
@@ -668,7 +669,7 @@ describe('persistence', () => {
         activePersonId: 'b',
         companyDays: [closure, { ...closure, id: 'bad', date: 'nope' }],
       })!
-      expect(m.companies).toEqual([{ id: 'company-1', name: 'My company', colour: '#6f5bb8', style: 'fill', days: [closure] }])
+      expect(m.companies).toEqual([{ id: 'company-1', name: 'My company', colour: '#6f5bb8', style: 'fill', leaveYearStartMonth: 1, leaveYearStartDay: 1, days: [closure] }])
       expect(m.people.map((p) => p.companyId)).toEqual(['company-1', 'company-1'])
       expect(m.activePersonId).toBe('b')
     })
@@ -684,9 +685,9 @@ describe('persistence', () => {
           5,
           { name: 'No id' },
           { id: 7 },
-          { id: 'a', name: '  Acme ', colour: '#6f5bb8', style: 'fill', days: [closure, { ...closure, id: 'x', date: 'bad' }] },
+          { id: 'a', name: '  Acme ', colour: '#6f5bb8', style: 'fill', leaveYearStartMonth: 1, leaveYearStartDay: 1, days: [closure, { ...closure, id: 'x', date: 'bad' }] },
           { id: 'a', name: 'Dup' },
-          { id: 'b', name: '   ', colour: '#6f5bb8', style: 'fill', days: 'oops' },
+          { id: 'b', name: '   ', colour: '#6f5bb8', style: 'fill', leaveYearStartMonth: 1, leaveYearStartDay: 1, days: 'oops' },
           { id: 'c', name: 'y'.repeat(99) },
         ],
         people: [{ id: 'p' }],
@@ -841,8 +842,8 @@ describe('plan import/export', () => {
     ],
     activePersonId: 'p2',
     companies: [
-      { id: 'co1', name: 'Acme', colour: '#6f5bb8', style: 'fill', days: [closure] },
-      { id: 'co2', name: 'Beta', colour: '#6f5bb8', style: 'fill', days: [] },
+      { id: 'co1', name: 'Acme', colour: '#6f5bb8', style: 'fill', leaveYearStartMonth: 1, leaveYearStartDay: 1, days: [closure] },
+      { id: 'co2', name: 'Beta', colour: '#6f5bb8', style: 'fill', leaveYearStartMonth: 1, leaveYearStartDay: 1, days: [] },
     ],
     editingCompanyId: null,
     yearOffset: 0,
@@ -872,7 +873,7 @@ describe('plan import/export', () => {
     for (const json of ['null', '42', '"plan"', '[]', '{}', '{"version":0}', '{"version":"5"}']) {
       expect(reason(json)).toBe('not-a-plan')
     }
-    expect(reason('{"version":7}')).toBe('newer-version')
+    expect(reason('{"version":8}')).toBe('newer-version')
     const newer = parsePlan('{"version":99}')
     expect(!newer.ok && newer.message).toMatch(/newer version/)
   })
@@ -958,7 +959,7 @@ describe('fortnightly working pattern', () => {
     const person = { ...alice, workingDaysWeek2: [1, 2, 3, 4], fortnightStart: '2026-11-16' }
     const state: PlannerState = { ...base, people: [person], activePersonId: person.id }
     const json = serialisePlan(state)
-    expect(JSON.parse(json).version).toBe(6)
+    expect(JSON.parse(json).version).toBe(7)
     const parsed = parsePlan(json)
     expect(parsed.ok && parsed.plan.people[0]).toMatchObject({ workingDaysWeek2: [1, 2, 3, 4], fortnightStart: '2026-11-16' })
   })
@@ -1076,7 +1077,7 @@ describe('day styles and marks-dates people', () => {
         activePersonId: 'a',
         companies: [
           { id: 'c1', name: 'One', colour: 'purple', style: 5, days: [] },
-          { id: 'c2', name: 'Two', colour: '#ABCDEF', style: 'outline', days: [] },
+          { id: 'c2', name: 'Two', colour: '#ABCDEF', style: 'outline', leaveYearStartMonth: 1, leaveYearStartDay: 1, days: [] },
         ],
       })!
       expect(m.people[0]).toMatchObject({ style: 'fill', tracksAllowance: true })
@@ -1088,11 +1089,188 @@ describe('day styles and marks-dates people', () => {
     it('round-trips through serialisePlan', () => {
       const state: PlannerState = {
         ...school,
-        companies: [{ id: 'co1', name: 'Acme', colour: '#2a8aa6', style: 'outline', days: [] }],
+        companies: [{ id: 'co1', name: 'Acme', colour: '#2a8aa6', style: 'outline', leaveYearStartMonth: 1, leaveYearStartDay: 1, days: [] }],
       }
       const parsed = parsePlan(serialisePlan(state))
       expect(parsed.ok && parsed.plan.people[0]).toMatchObject({ style: 'outline', tracksAllowance: false })
       expect(parsed.ok && parsed.plan.companies[0]).toMatchObject({ colour: '#2a8aa6', style: 'outline' })
+    })
+  })
+})
+
+describe('per-company leave year start', () => {
+  const APRIL = { leaveYearStartMonth: 4, leaveYearStartDay: 1 }
+  const aprilShared = { ...DEFAULT_SHARED, ...APRIL }
+  const company = (id: string, extra: Partial<Company> = {}): Company => ({
+    id,
+    name: id,
+    colour: '#6f5bb8',
+    style: 'fill',
+    leaveYearStartMonth: 1,
+    leaveYearStartDay: 1,
+    days: [],
+    ...extra,
+  })
+  const startOf = (c: Company) => ({ leaveYearStartMonth: c.leaveYearStartMonth, leaveYearStartDay: c.leaveYearStartDay })
+
+  describe('migration copies the planner-wide start onto every company', () => {
+    it('from v1 and v2', () => {
+      for (const version of [1, 2]) {
+        const m = migrateStored({ version, settings: { leaveYearStartMonth: 4, leaveYearStartDay: 1 }, leave: {} })!
+        expect(m.companies).toHaveLength(1)
+        expect(startOf(m.companies[0])).toEqual(APRIL)
+        expect(m.shared).toMatchObject(APRIL)
+      }
+    })
+
+    it('from v3', () => {
+      const m = migrateStored({ version: 3, shared: aprilShared, people: [{ id: 'a' }], activePersonId: 'a', companyDays: [] })!
+      expect(startOf(m.companies[0])).toEqual(APRIL)
+    })
+
+    it('from v4, v5 and v6, for every company', () => {
+      for (const version of [4, 5, 6]) {
+        const m = migrateStored({
+          version,
+          shared: aprilShared,
+          people: [{ id: 'a' }],
+          activePersonId: 'a',
+          companies: [{ id: 'c1', name: 'One', days: [] }, { id: 'c2', name: 'Two', days: [] }],
+          companyDays: [],
+        })!
+        expect(m.shared).toMatchObject(APRIL)
+        expect(m.companies.map(startOf)).toEqual([APRIL, APRIL])
+      }
+    })
+
+    it('from a v6 plan loaded from localStorage', () => {
+      const storage = new MemoryStorage()
+      storage.setItem(
+        STORAGE_KEY,
+        JSON.stringify({
+          version: 6,
+          shared: aprilShared,
+          people: [{ id: 'a', companyId: 'c1' }],
+          activePersonId: 'a',
+          companies: [{ id: 'c1', days: [] }, { id: 'c2', days: [] }],
+        }),
+      )
+      const s = initialState(storage)
+      expect(s.companies.map(startOf)).toEqual([APRIL, APRIL])
+      expect(s.shared).toMatchObject(APRIL)
+    })
+
+    it('through the JSON import path (parsePlan)', () => {
+      const parsed = parsePlan(
+        JSON.stringify({
+          version: 6,
+          shared: aprilShared,
+          people: [{ id: 'a' }],
+          activePersonId: 'a',
+          companies: [{ id: 'c1', days: [] }, { id: 'c2', days: [] }],
+        }),
+      )
+      expect(parsed.ok && parsed.plan.companies.map(startOf)).toEqual([APRIL, APRIL])
+    })
+  })
+
+  describe('v7 data', () => {
+    const v7 = (companies: unknown[]) => ({
+      version: 7,
+      shared: aprilShared,
+      people: [{ id: 'a' }],
+      activePersonId: 'a',
+      companies,
+    })
+
+    it("keeps a company's own start", () => {
+      const m = migrateStored(v7([{ id: 'c1', leaveYearStartMonth: 10, leaveYearStartDay: 15, days: [] }]))!
+      expect(startOf(m.companies[0])).toEqual({ leaveYearStartMonth: 10, leaveYearStartDay: 15 })
+      expect(m.shared).toMatchObject(APRIL)
+    })
+
+    it("falls back to shared's start when missing", () => {
+      const m = migrateStored(v7([{ id: 'c1', days: [] }]))!
+      expect(startOf(m.companies[0])).toEqual(APRIL)
+    })
+
+    it("falls back to shared's start when invalid, and clamps out-of-range values", () => {
+      const m = migrateStored(
+        v7([
+          { id: 'c1', leaveYearStartMonth: 'x', leaveYearStartDay: null, days: [] },
+          { id: 'c2', leaveYearStartMonth: 99, leaveYearStartDay: 0, days: [] },
+        ]),
+      )!
+      expect(startOf(m.companies[0])).toEqual(APRIL)
+      expect(startOf(m.companies[1])).toEqual({ leaveYearStartMonth: 12, leaveYearStartDay: 1 })
+    })
+
+    it('keeps a company start through parsePlan', () => {
+      const parsed = parsePlan(JSON.stringify(v7([{ id: 'c1', leaveYearStartMonth: 10, leaveYearStartDay: 15, days: [] }])))
+      expect(parsed.ok && startOf(parsed.plan.companies[0])).toEqual({ leaveYearStartMonth: 10, leaveYearStartDay: 15 })
+    })
+
+    it('round-trips per-company starts through serialisePlan', () => {
+      const state: PlannerState = {
+        ...base,
+        shared: aprilShared,
+        companies: [
+          company('c1', { leaveYearStartMonth: 1, leaveYearStartDay: 1 }),
+          company('c2', { leaveYearStartMonth: 9, leaveYearStartDay: 15 }),
+        ],
+      }
+      const parsed = parsePlan(serialisePlan(state))
+      expect(parsed.ok && parsed.plan.companies.map(startOf)).toEqual([
+        { leaveYearStartMonth: 1, leaveYearStartDay: 1 },
+        { leaveYearStartMonth: 9, leaveYearStartDay: 15 },
+      ])
+      expect(parsed.ok && parsed.plan.shared).toMatchObject(APRIL)
+    })
+  })
+
+  describe('addCompany', () => {
+    it("copies the planner-wide default start", () => {
+      const s = plannerReducer({ ...base, shared: aprilShared }, { type: 'addCompany', id: 'co1', name: 'Acme' })
+      expect(startOf(s.companies[0])).toEqual(APRIL)
+    })
+  })
+
+  describe('setCompanyLeaveYearStart', () => {
+    const withCo: PlannerState = { ...base, companies: [company('co1'), company('co2')] }
+    const set = (month: number, day: number, id = 'co1') =>
+      plannerReducer(withCo, { type: 'setCompanyLeaveYearStart', id, month, day })
+
+    it('sets the start on that company only', () => {
+      const s = set(4, 6)
+      expect(startOf(s.companies[0])).toEqual({ leaveYearStartMonth: 4, leaveYearStartDay: 6 })
+      expect(startOf(s.companies[1])).toEqual({ leaveYearStartMonth: 1, leaveYearStartDay: 1 })
+      expect(s.shared).toEqual(withCo.shared)
+    })
+
+    it('clamps month to 1-12 and day to 1-31', () => {
+      expect(startOf(set(0, 0).companies[0])).toEqual({ leaveYearStartMonth: 1, leaveYearStartDay: 1 })
+      expect(startOf(set(13, 45).companies[0])).toEqual({ leaveYearStartMonth: 12, leaveYearStartDay: 31 })
+    })
+
+    it('keeps the current value for invalid input', () => {
+      const cur = plannerReducer(withCo, { type: 'setCompanyLeaveYearStart', id: 'co1', month: 7, day: 3 })
+      const s = plannerReducer(cur, { type: 'setCompanyLeaveYearStart', id: 'co1', month: NaN, day: 9 })
+      expect(startOf(s.companies[0])).toEqual({ leaveYearStartMonth: 7, leaveYearStartDay: 9 })
+    })
+
+    it('ignores an unknown company', () => {
+      expect(startOf(set(4, 1, 'nope').companies[0])).toEqual({ leaveYearStartMonth: 1, leaveYearStartDay: 1 })
+    })
+  })
+
+  describe('leaveYearStartFor', () => {
+    const cos = [company('co1', { leaveYearStartMonth: 10, leaveYearStartDay: 15 })]
+    it("returns the company's start", () => {
+      expect(leaveYearStartFor(aprilShared, cos, { companyId: 'co1' })).toEqual({ leaveYearStartMonth: 10, leaveYearStartDay: 15 })
+    })
+    it("returns shared's start for no company or a dangling id", () => {
+      expect(leaveYearStartFor(aprilShared, cos, { companyId: null })).toEqual(APRIL)
+      expect(leaveYearStartFor(aprilShared, cos, { companyId: 'gone' })).toEqual(APRIL)
     })
   })
 })
