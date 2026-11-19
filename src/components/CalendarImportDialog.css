@@ -53,7 +53,7 @@
 
 .import-events-actions {
   display: flex;
-  gap: 4px;
+  gap: 12px;
 }
 
 .import-list {
