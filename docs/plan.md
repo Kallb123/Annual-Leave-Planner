@@ -47,7 +47,7 @@ People with a fixed annual leave allowance want to see the whole leave year at a
 - [x] Warn when booked leave exceeds the entitlement (notice above the calendar, over-limit days marked on screen and in the PNG)
 - [x] "Bridge" suggestions: highlight days that join bank holidays to weekends
 - [x] Mobile layout pass: larger touch targets, a collapsible settings panel, one month per row and a simpler toolbar on phones
-- [ ] Deploy to production (Vercel or Cloudflare Pages) and add the URL to the README
+- [x] Deploy to production (Vercel or Cloudflare Pages) and add the URL to the README
 
 ### M2 – Export & sharing
 
@@ -71,6 +71,7 @@ People with a fixed annual leave allowance want to see the whole leave year at a
 - [ ] Accessibility audit (keyboard grid navigation with arrow keys, screen reader pass)
 - [ ] Visual regression tests for the PNG renderer (Playwright screenshot comparison)
 - [x] Installable PWA with offline support
+- [x] Link preview image and Open Graph metadata, so shared links show a card in WhatsApp, Slack and other apps
 - [x] Fortnightly working patterns (for example a 9-day fortnight), per person, with a choice of which week is week 1
 - [x] Several people in one plan, each with their own allowance, working days and colour
 

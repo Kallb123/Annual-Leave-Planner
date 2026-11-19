@@ -1,6 +1,8 @@
 # Deployment
 
-The app is a static single-page app. `npm run build` writes everything to `dist/`. There are no server functions, environment variables or routes. The host configuration is already in the repo: `wrangler.jsonc` (Cloudflare Workers), cache headers in `public/_headers` (Cloudflare) and `vercel.json` (Vercel). See [Caching and updates](#caching-and-updates).
+The app is a static single-page app. `npm run build` writes everything to `dist/`. There are no server functions, environment variables or routes. The host configuration is already in the repo: `wrangler.jsonc` (Cloudflare Workers), and cache and security headers in `public/_headers` (Cloudflare) and `vercel.json` (Vercel). See [Caching and updates](#caching-and-updates) and [Security headers](#security-headers).
+
+Production is at <https://annual-leave-planner.kallum.uk/>. The link preview tags in `index.html` use that address (see [architecture](architecture.md#link-previews)), so update them if the domain changes.
 
 ## Build pipeline
 
@@ -44,30 +46,43 @@ The app is a PWA: a service worker caches the build so it works offline. For use
 | --- | --- |
 | `/`, `/index.html`, `/sw.js`, `/manifest.webmanifest` | `no-cache` (always revalidate) |
 | `/assets/*` (hashed filenames) | `public, max-age=31536000, immutable` |
+| `/og-image.png` (link preview image, see [architecture](architecture.md#link-previews)) | `public, max-age=86400` |
 
 - **Cloudflare (Workers or Pages)**: `public/_headers` (copied into `dist/` by Vite; the service worker deliberately doesn't precache it).
 - **Vercel**: `vercel.json`.
 
-If you host elsewhere, replicate these two rules. If `sw.js` or `index.html` were cached for a long time, returning users would keep seeing the old version.
+If you host elsewhere, replicate these rules. If `sw.js` or `index.html` were cached for a long time, returning users would keep seeing the old version.
 
 When a new version is deployed, the browser fetches the changed `sw.js`, installs it in the background and the app shows an "Update available" banner. Clicking **Reload** activates it. The service worker is only registered in production builds, so `npm run dev` is never affected. To test locally, run `npm run build && npm run preview`.
 
-## Optional: security headers
+## Security headers
 
-Not needed for v1, but both hosts make them easy to add:
-
-- **Cloudflare**: add rules to the existing `public/_headers`.
-- **Vercel**: add to the `headers` list in the existing `vercel.json`.
-
-A sensible starting policy for this app (no third-party scripts, and no network calls at runtime):
+Every response gets these headers, from the `/*` rule in `public/_headers` (Cloudflare) and the `/(.*)` rule in `vercel.json` (Vercel). Keep the two in step; `vite-plugins/securityHeaders.test.ts` fails if they differ.
 
 ```
-Content-Security-Policy: default-src 'self'; img-src 'self' blob: data:; style-src 'self' 'unsafe-inline'
+Content-Security-Policy: default-src 'self'; img-src 'self' blob: data:; style-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'
 X-Content-Type-Options: nosniff
 Referrer-Policy: strict-origin-when-cross-origin
+Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=(), usb=()
 ```
 
-`'unsafe-inline'` for styles is needed because the palette is applied as inline CSS custom properties, and legend swatches use inline styles.
+What they do:
+
+- **`Content-Security-Policy` (CSP)** tells the browser which sources the page may load and run things from. If someone ever managed to inject markup into the page (cross-site scripting), the browser would refuse to run it. The app has no third-party scripts, fonts or analytics and makes no network calls at runtime, so it can be strict:
+  - `default-src 'self'`: scripts, styles, fonts, the manifest, the service worker and any network requests may only come from this site. No inline `<script>` and no `eval`.
+  - `img-src 'self' blob: data:`: images from this site, plus `blob:` and `data:` URLs, which canvas and download code can produce.
+  - `style-src 'self'`: stylesheets from this site only, and no `<style>` blocks or `style="..."` attributes in markup. React's `style` props (the palette's CSS custom properties, legend swatches) are set through the DOM, which CSP allows, so `'unsafe-inline'` isn't needed. Don't add styles with `setAttribute('style', ...)` or `innerHTML`; they would be blocked.
+  - `object-src 'none'`: no plugins (`<object>`, `<embed>`).
+  - `base-uri 'self'`: an injected `<base>` tag can't redirect the page's relative URLs to another site.
+  - `form-action 'self'`: forms can only submit to this site (the app's forms never submit anywhere).
+  - `frame-ancestors 'none'`: other sites can't show the app in an `<iframe>`, which prevents clickjacking (tricking someone into clicking a hidden, framed copy).
+- **`X-Content-Type-Options: nosniff`** stops the browser guessing a file's type. A file is only treated as a script or stylesheet if the server says it is one.
+- **`Referrer-Policy: strict-origin-when-cross-origin`** controls what the browser sends in the `Referer` header when someone follows a link from the app to another site: just `https://annual-leave-planner.kallum.uk`, never the full URL. That matters once plans can be shared in the URL (#14).
+- **`Permissions-Policy`** turns off browser features the app never uses (camera, microphone, location, payments, USB), so no code on the page can ask for them.
+
+If you add something that loads from another site (analytics, a web font CDN, an API such as an `.ics` feed), the CSP has to allow it, or the browser blocks it and logs a "Content Security Policy" error in the console. To check the policy locally, run `npm run build && npm run preview` and serve `dist/` with the headers above (`vite preview` doesn't read `_headers`).
+
+HTTPS-only (`Strict-Transport-Security`, HSTS) isn't set here. It's a decision for the whole domain (browsers remember it for months, and it can cover subdomains), so turn it on in the host's dashboard instead, for example Cloudflare's SSL/TLS → Edge Certificates → HSTS.
 
 ## Keeping bank holidays fresh
 

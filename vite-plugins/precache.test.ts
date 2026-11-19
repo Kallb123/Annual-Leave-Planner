@@ -2,10 +2,11 @@ import { describe, expect, it } from 'vitest'
 import { buildPrecacheList, computeVersion, renderServiceWorker } from './precache.ts'
 
 describe('buildPrecacheList', () => {
-  it('lists index.html as ./, keeps assets and drops sw.js, _headers and source maps', () => {
+  it('lists index.html as ./, keeps assets and drops sw.js, _headers, source maps and the link preview image', () => {
     const list = buildPrecacheList([
       'sw.js',
       '_headers',
+      'og-image.png',
       'index.html',
       'assets/index-abc.js',
       'assets/index-abc.js.map',

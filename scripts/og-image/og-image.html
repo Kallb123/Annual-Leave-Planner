@@ -1,0 +1,214 @@
+<!doctype html>
+<!--
+  Source for public/og-image.png, the link preview image shown by WhatsApp,
+  Slack and other apps. Rendered at 1200x630 by scripts/generate-og-image.mjs.
+  Colours match src/theme.ts. The calendar shows May to August 2027 (with that
+  year's bank holidays) but no year, so the image doesn't date.
+-->
+<html lang="en-GB">
+  <head>
+    <meta charset="UTF-8" />
+    <style>
+      @font-face {
+        font-family: 'Inter';
+        font-weight: 100 900;
+        src: url('../../src/assets/fonts/inter-latin-wght-normal.woff2') format('woff2-variations');
+      }
+      @font-face {
+        font-family: 'Space Grotesk';
+        font-weight: 300 700;
+        src: url('../../src/assets/fonts/space-grotesk-latin-wght-normal.woff2') format('woff2-variations');
+      }
+
+      :root {
+        --surface: #f6f5f1;
+        --background: #ffffff;
+        --text: #1e1d1a;
+        --muted: #6b675f;
+        --border: #e6e3dc;
+        --non-working: #f2f0eb;
+        --non-working-text: #6f6b62;
+        --bank-holiday: #f3e2b6;
+        --bank-holiday-text: #6a4a10;
+        --leave: #2f7a6b;
+        --leave-2: #4a55c2;
+      }
+
+      * {
+        box-sizing: border-box;
+        margin: 0;
+      }
+
+      html,
+      body {
+        width: 1200px;
+        height: 630px;
+        overflow: hidden;
+        background: var(--surface);
+        color: var(--text);
+        font-family: 'Inter', sans-serif;
+      }
+
+      main {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        height: 100%;
+        padding: 50px 48px 0;
+      }
+
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 22px;
+      }
+
+      .brand svg {
+        width: 76px;
+        height: 76px;
+        flex: none;
+      }
+
+      h1 {
+        font-family: 'Space Grotesk', sans-serif;
+        font-size: 66px;
+        font-weight: 700;
+        letter-spacing: -0.02em;
+        line-height: 1;
+      }
+
+      .tagline {
+        margin-top: 20px;
+        font-size: 27px;
+        font-weight: 450;
+        color: var(--muted);
+        text-align: center;
+      }
+
+      .months {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 30px;
+        width: 100%;
+        margin-top: 36px;
+        padding: 26px 30px 0;
+        background: var(--background);
+        border: 1px solid var(--border);
+        border-bottom: 0;
+        border-radius: 28px 28px 0 0;
+        flex: 1;
+      }
+
+      .month h2 {
+        margin-bottom: 12px;
+        font-size: 20px;
+        font-weight: 600;
+      }
+
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(7, 1fr);
+        gap: 5px;
+      }
+
+      .weekday {
+        font-size: 13px;
+        color: var(--muted);
+        text-align: center;
+        padding-bottom: 2px;
+      }
+
+      .day {
+        display: grid;
+        place-items: center;
+        height: 40px;
+        border-radius: 9px;
+        font-size: 16px;
+        font-weight: 500;
+        font-variant-numeric: tabular-nums;
+      }
+
+      .weekend {
+        background: var(--non-working);
+        color: var(--non-working-text);
+      }
+
+      .bank {
+        background: var(--bank-holiday);
+        color: var(--bank-holiday-text);
+        font-weight: 600;
+      }
+
+      .leave {
+        background: var(--leave);
+        color: #fff;
+        font-weight: 600;
+      }
+
+      .leave-2 {
+        background: var(--leave-2);
+        color: #fff;
+        font-weight: 600;
+      }
+
+    </style>
+  </head>
+  <body>
+    <main>
+      <div class="brand">
+        <svg viewBox="0 0 512 512" aria-hidden="true">
+          <rect width="512" height="512" rx="112" fill="#1e1d1a" />
+          <rect x="96" y="124" width="320" height="292" rx="36" fill="#f6f5f1" />
+          <path d="M96 160a36 36 0 0 1 36-36h248a36 36 0 0 1 36 36v40H96z" fill="#4a4740" />
+          <rect x="164" y="84" width="28" height="80" rx="14" fill="#f6f5f1" />
+          <rect x="320" y="84" width="28" height="80" rx="14" fill="#f6f5f1" />
+          <g fill="#e6e3dc">
+            <rect x="132" y="236" width="56" height="48" rx="10" />
+            <rect x="228" y="236" width="56" height="48" rx="10" />
+            <rect x="132" y="324" width="56" height="48" rx="10" />
+          </g>
+          <g fill="#2f7a6b">
+            <rect x="324" y="236" width="56" height="48" rx="10" />
+            <rect x="228" y="324" width="56" height="48" rx="10" />
+            <rect x="324" y="324" width="56" height="48" rx="10" />
+          </g>
+        </svg>
+        <h1>Annual Leave Planner</h1>
+      </div>
+      <p class="tagline">Plan your leave around bank holidays and share it as an image.</p>
+      <section class="months" id="months"></section>
+    </main>
+    <script>
+      // May to August 2027. Months are 0-based.
+      const year = 2027
+      const months = [4, 5, 6, 7]
+      const bankHolidays = ['2027-05-03', '2027-05-31', '2027-08-30']
+      const leave = ['2027-06-01', '2027-06-02', '2027-06-03', '2027-06-04', '2027-08-23', '2027-08-24', '2027-08-25', '2027-08-26', '2027-08-27']
+      const otherPerson = ['2027-07-19', '2027-07-20', '2027-07-21', '2027-07-22', '2027-07-23']
+
+      const pad = (n) => String(n).padStart(2, '0')
+      const container = document.getElementById('months')
+      for (const month of months) {
+        const section = document.createElement('div')
+        section.className = 'month'
+        const name = new Date(year, month, 1).toLocaleString('en-GB', { month: 'long' })
+        const cells = ['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((d) => `<div class="weekday">${d}</div>`)
+        const offset = (new Date(year, month, 1).getDay() + 6) % 7
+        for (let i = 0; i < offset; i++) cells.push('<div></div>')
+        const days = new Date(year, month + 1, 0).getDate()
+        for (let day = 1; day <= days; day++) {
+          const iso = `${year}-${pad(month + 1)}-${pad(day)}`
+          const weekday = new Date(year, month, day).getDay()
+          let cls = ''
+          if (bankHolidays.includes(iso)) cls = 'bank'
+          else if (leave.includes(iso)) cls = 'leave'
+          else if (otherPerson.includes(iso)) cls = 'leave-2'
+          else if (weekday === 0 || weekday === 6) cls = 'weekend'
+          cells.push(`<div class="day ${cls}">${day}</div>`)
+        }
+        section.innerHTML = `<h2>${name}</h2><div class="grid">${cells.join('')}</div>`
+        container.append(section)
+      }
+    </script>
+  </body>
+</html>

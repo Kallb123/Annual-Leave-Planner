@@ -2,6 +2,8 @@
 
 A small web app for planning annual leave across a leave year and downloading the result as a PNG.
 
+**Use it at [annual-leave-planner.kallum.uk](https://annual-leave-planner.kallum.uk/).** No sign-up: your plan stays in your browser.
+
 - **Several people, one calendar.** Add everyone you plan leave with (a partner, a small team). Each person has their own allowance, carry-over, working days and bookings, and their own colour. Pick who you're booking for from the cards beside the calendar (chips on phones); days where several people are off are split into diagonal coloured bands, one per person.
 - **Plan visually.** Click a working day to book a full day, click again for a half day, and once more to clear it. Shift-click or drag (mouse, or swipe sideways on touch screens) to book or clear a whole range; weekends, non-working days and bank holidays are skipped.
 - **Your leave year.** Set your allowance and any carried-over days. Each company sets the date its leave year resets (for example 1 January, 1 April or 1 September), and each person's totals are worked out over their own company's leave year, so people at different employers are always counted correctly. People with no company use the plan's default leave year. The calendar shows the leave year of whoever you're booking for.
@@ -43,7 +45,7 @@ Then open http://localhost:5173.
 
 ## Deploying
 
-The app builds to static files in `dist/`, so it runs on any static host. It's set up for Cloudflare Workers (`wrangler.jsonc`) and Vercel (`vercel.json`). `public/_headers` and `vercel.json` set the cache headers that let updates through (see [docs/deployment.md](docs/deployment.md)):
+The app builds to static files in `dist/`, so it runs on any static host. It's set up for Cloudflare Workers (`wrangler.jsonc`) and Vercel (`vercel.json`). `public/_headers` and `vercel.json` set the cache headers that let updates through, and security headers such as a Content Security Policy (see [docs/deployment.md](docs/deployment.md)):
 
 | | Cloudflare Workers | Vercel |
 | --- | --- | --- |
