@@ -73,6 +73,8 @@ export default function App() {
         people: people.map((p) => ({
           name: p.person.name,
           colour: p.person.colour,
+          style: p.person.style,
+          tracksAllowance: p.person.tracksAllowance,
           summary: p.summary,
           warning: p.warning ?? undefined,
         })),
