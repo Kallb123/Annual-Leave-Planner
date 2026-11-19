@@ -322,6 +322,10 @@
   border-color: #9aa6e6;
 }
 
+.stretch-tile .rail-tile-text {
+  gap: 2px;
+}
+
 .company-mark {
   flex: none;
   width: 12px;
@@ -736,7 +740,8 @@
     font-size: 13px;
   }
 
-  .bridge-tile--card {
+  .bridge-tile--card,
+  .stretch-tile--card {
     border-radius: 16px;
   }
 

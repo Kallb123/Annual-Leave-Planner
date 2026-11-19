@@ -562,8 +562,8 @@ function PlanTab({ settings, people, companies, calendars, onImportCalendarFile,
         </div>
         <p className="hint">From GOV.UK. Published about a year ahead.</p>
         <SwitchRow
-          label="Suggest bridge days"
-          hint="Highlights short runs of working days between bank holidays, company days and weekends. Never shown in the PNG."
+          label="Suggestions"
+          hint="Highlights short runs of working days between bank holidays, company days and weekends, and shows the longest stretch without a week off. Never shown in the PNG."
           checked={settings.showBridgeSuggestions}
           onChange={(showBridgeSuggestions) => update({ showBridgeSuggestions })}
         />
