@@ -28,6 +28,8 @@ import {
   type PersonSettings,
   type Settings,
   type SharedSettings,
+  type AllowanceByYear,
+  type YearAllowance,
 } from '../domain/types'
 import { sanitiseCalendarEvents } from '../domain/importedCalendars'
 import { DEFAULT_COMPANY_COLOUR, PERSON_COLOURS, isHexColour, nextCalendarColour, nextCompanyColour, nextPersonColour } from '../theme'
@@ -70,6 +72,15 @@ export type PlannerAction =
   | { type: 'setPersonColour'; id: string; colour: string }
   | { type: 'setPersonStyle'; id: string; style: DayStyle }
   | { type: 'setPersonTracksAllowance'; id: string; tracksAllowance: boolean }
+  | {
+      type: 'setYearAllowance'
+      id: string
+      /** A `leaveYearKey`. */
+      year: string
+      /** undefined = leave unchanged, null = remove the override, number = set it. */
+      allowanceDays?: number | null
+      carryOverDays?: number | null
+    }
   | { type: 'selectPerson'; id: string }
   | { type: 'addCompany'; id: string; name: string }
   | { type: 'renameCompany'; id: string; name: string }
@@ -270,6 +281,7 @@ export function plannerReducer(state: PlannerState, action: PlannerAction): Plan
         style: 'fill',
         tracksAllowance: true,
         leave: {},
+        allowanceByYear: {},
         companyId: null,
       }
       return { ...state, people: [...state.people, person], activePersonId: person.id, editingCompanyId: null }
@@ -297,6 +309,19 @@ export function plannerReducer(state: PlannerState, action: PlannerAction): Plan
       return typeof action.tracksAllowance === 'boolean'
         ? updatePerson(state, action.id, (p) => ({ ...p, tracksAllowance: action.tracksAllowance }))
         : state
+    case 'setYearAllowance': {
+      if (!YEAR_KEY.test(action.year)) return state
+      return updatePerson(state, action.id, (p) => {
+        const entry: YearAllowance = { ...p.allowanceByYear[action.year] }
+        for (const field of ['allowanceDays', 'carryOverDays'] as const) {
+          const v = action[field]
+          if (v === null) delete entry[field]
+          else if (typeof v === 'number' && Number.isFinite(v)) entry[field] = clamp(toHalf(v), 0, 366)
+        }
+        const { [action.year]: _old, ...rest } = p.allowanceByYear
+        return { ...p, allowanceByYear: Object.keys(entry).length ? { ...rest, [action.year]: entry } : rest }
+      })
+    }
     case 'selectPerson':
       return state.people.some((p) => p.id === action.id)
         ? { ...state, activePersonId: action.id, editingCompanyId: null }
@@ -447,7 +472,7 @@ export function plannerReducer(state: PlannerState, action: PlannerAction): Plan
 // ---------------------------------------------------------------------------
 
 export const STORAGE_KEY = 'annual-leave-planner'
-const SCHEMA_VERSION = 8
+const SCHEMA_VERSION = 9
 
 /** Id given to the person created from v1/v2 data or on first visit. */
 const DEFAULT_PERSON_ID = 'person-1'
@@ -472,9 +497,11 @@ const DEFAULT_COMPANY_ID = 'company-1'
  *   onto every company, so nobody's leave year changes.
  * - v8: `calendars`: imported .ics calendars (name, colour, style, visible, events), separate from
  *   people and companies. Older plans load with none.
+ * - v9: `allowanceByYear` on each person: per-leave-year overrides of `allowanceDays` / `carryOverDays`,
+ *   keyed by the calendar year the leave year starts in. Older plans load with none, so nothing changes.
  */
-interface StoredStateV8 {
-  version: 8
+interface StoredStateV9 {
+  version: 9
   shared: SharedSettings
   people: Person[]
   activePersonId: string
@@ -482,7 +509,7 @@ interface StoredStateV8 {
   calendars: ImportedCalendar[]
 }
 
-export type StoredContent = Omit<StoredStateV8, 'version'>
+export type StoredContent = Omit<StoredStateV9, 'version'>
 
 function defaultPerson(): Person {
   return {
@@ -493,6 +520,7 @@ function defaultPerson(): Person {
     style: 'fill',
     tracksAllowance: true,
     leave: {},
+    allowanceByYear: {},
     companyId: null,
   }
 }
@@ -521,7 +549,7 @@ export function hasSavedState(storage: Storage | undefined = safeLocalStorage())
 
 /** The versioned JSON envelope that is both stored and exported: exactly what `parsePlan` reads back. */
 export function serialisePlan(state: PlannerState): string {
-  const payload: StoredStateV8 = {
+  const payload: StoredStateV9 = {
     version: SCHEMA_VERSION,
     shared: state.shared,
     people: state.people,
@@ -609,7 +637,7 @@ export function migrateStored(parsed: unknown): StoredContent | null {
       calendars: [],
     }
   }
-  if (p.version !== 3 && p.version !== 4 && p.version !== 5 && p.version !== 6 && p.version !== 7 && p.version !== 8) return null
+  if (p.version !== 3 && p.version !== 4 && p.version !== 5 && p.version !== 6 && p.version !== 7 && p.version !== 8 && p.version !== 9) return null
   const shared = splitSettings(
     sanitiseSettings({ ...DEFAULT_SETTINGS, ...(asObject(p.shared) as Partial<Settings>) }),
   ).shared
@@ -637,7 +665,7 @@ export function migrateStored(parsed: unknown): StoredContent | null {
     people: people.map((x) => ({ ...x, companyId: companies.some((c) => c.id === x.companyId) ? x.companyId : null })),
     activePersonId,
     companies,
-    calendars: p.version === 8 ? sanitiseCalendars(p.calendars) : [],
+    calendars: p.version === 8 || p.version === 9 ? sanitiseCalendars(p.calendars) : [],
   }
 }
 
@@ -715,10 +743,34 @@ function sanitisePeople(value: unknown): Person[] {
       style: isDayStyle(r.style) ? r.style : 'fill',
       tracksAllowance: typeof r.tracksAllowance === 'boolean' ? r.tracksAllowance : true,
       leave: sanitiseLeave(r.leave),
+      allowanceByYear: sanitiseAllowanceByYear(r.allowanceByYear),
       companyId: typeof r.companyId === 'string' ? r.companyId : null,
     })
   }
   return people.length ? people : [defaultPerson()]
+}
+
+const YEAR_KEY = /^\d{4}$/
+
+/** Most per-year overrides kept for one person. */
+const MAX_ALLOWANCE_YEARS = 200
+
+/** Keep valid 4-digit year keys with clamped half-day values; drop empty entries. */
+export function sanitiseAllowanceByYear(value: unknown): AllowanceByYear {
+  const out: AllowanceByYear = {}
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return out
+  for (const [year, raw] of Object.entries(value)) {
+    if (Object.keys(out).length >= MAX_ALLOWANCE_YEARS) break
+    if (!YEAR_KEY.test(year) || !raw || typeof raw !== 'object') continue
+    const r = raw as Record<string, unknown>
+    const entry: YearAllowance = {}
+    for (const field of ['allowanceDays', 'carryOverDays'] as const) {
+      const v = r[field]
+      if (typeof v === 'number' && Number.isFinite(v)) entry[field] = clamp(toHalf(v), 0, 366)
+    }
+    if (Object.keys(entry).length) out[year] = entry
+  }
+  return out
 }
 
 function pickPersonKeys(r: Record<string, unknown>): Partial<Settings> {

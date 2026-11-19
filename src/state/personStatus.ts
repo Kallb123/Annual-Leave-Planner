@@ -4,6 +4,7 @@ import type { CompanyDayIndex } from '../domain/companyDays'
 import type { IsoDate } from '../domain/dates'
 import { leaveYearAtOffset, leaveYearLabel, leaveYearsOverlapping } from '../domain/leaveYear'
 import type { Company, DateRange, Person, SharedSettings } from '../domain/types'
+import { settingsForLeaveYear, yearAllowanceFor, type EffectiveAllowance } from '../domain/yearAllowance'
 import { leaveYearStartFor, personSettings } from './plannerState'
 
 export interface PersonStatus {
@@ -13,6 +14,8 @@ export interface PersonStatus {
   range: DateRange
   /** `range`'s label, e.g. "2026" or "2026/27". */
   label: string
+  /** Allowance and carry-over in force for `range`: the person's defaults unless that leave year is overridden. */
+  allowance: EffectiveAllowance
   /** Totals over `range`. */
   summary: AllowanceSummary
   /**
@@ -48,11 +51,11 @@ export function personStatus(input: PersonStatusInput): PersonStatus {
   const start = leaveYearStartFor(shared, companies, person)
   const range = leaveYearAtOffset(today, yearOffset, start)
   const label = leaveYearLabel(range)
-  const summary = summarise(range, settings, person.leave, holidays, companyDays, person.tracksAllowance)
+  const summary = summarise(range, settingsForLeaveYear(settings, person.allowanceByYear, range), person.leave, holidays, companyDays, person.tracksAllowance)
 
   const overLimit = new Set<IsoDate>()
   for (const year of leaveYearsOverlapping(view, start)) {
-    for (const d of overAllocatedDates(year, settings, person.leave, holidays, companyDays, person.tracksAllowance)) {
+    for (const d of overAllocatedDates(year, settingsForLeaveYear(settings, person.allowanceByYear, year), person.leave, holidays, companyDays, person.tracksAllowance)) {
       overLimit.add(d)
     }
   }
@@ -62,6 +65,7 @@ export function personStatus(input: PersonStatusInput): PersonStatus {
     active,
     range,
     label,
+    allowance: yearAllowanceFor(settings, person.allowanceByYear, range),
     summary,
     overLimit,
     warning: overEntitlementMessage(summary.remaining, label),

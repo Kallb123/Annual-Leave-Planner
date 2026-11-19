@@ -10,9 +10,12 @@ export const REGIONS: { id: Region; label: string }[] = [
 ]
 
 export interface Settings {
-  /** Days of leave granted per leave year. Half days allowed (e.g. 25.5). */
+  /**
+   * Days of leave granted per leave year. Half days allowed (e.g. 25.5). For a person this is
+   * the default, used for leave years without an override in `allowanceByYear`.
+   */
   allowanceDays: number
-  /** Days carried over from the previous leave year. */
+  /** Days carried over from the previous leave year. A person's default, as for `allowanceDays`. */
   carryOverDays: number
   /**
    * Month the leave year starts (1 = January). Planner-wide, this is the default for
@@ -101,10 +104,19 @@ export const DAY_STYLES: { id: DayStyle; label: string }[] = [
   { id: 'outline', label: 'Outline' },
 ]
 
+/** Allowance and/or carry-over for one leave year, overriding the person's defaults. An absent field uses the default. */
+export interface YearAllowance {
+  allowanceDays?: number
+  carryOverDays?: number
+}
+
+/** Keyed by the calendar year the leave year starts in, as a string: "2026" is the leave year starting in 2026 (e.g. 2026/27). */
+export type AllowanceByYear = Record<string, YearAllowance>
+
 /**
- * Someone whose leave is planned. Each person has their own allowance,
- * working pattern and bookings, and a colour used for their leave on the
- * calendar and in the PNG.
+ * Someone whose leave is planned. Each person has their own default allowance and
+ * carry-over (with optional per-leave-year overrides in `allowanceByYear`), working
+ * pattern and bookings, and a colour used for their leave on the calendar and in the PNG.
  */
 export interface Person extends PersonSettings {
   id: string
@@ -119,6 +131,8 @@ export interface Person extends PersonSettings {
    */
   tracksAllowance: boolean
   leave: LeaveEntries
+  /** Per-leave-year overrides of the default `allowanceDays` / `carryOverDays`. Empty when none. */
+  allowanceByYear: AllowanceByYear
   /** Id of a company in the planner's `companies`, or null for none. */
   companyId: string | null
 }
