@@ -28,7 +28,7 @@ function companyVars(colour: string | undefined): CSSProperties {
 }
 
 export default function App() {
-  const { state, dispatch, range, label, settings, activePerson, people, companies, editingCompany, editingCompanyIndex, viewCompany, yearView, summary, bridges, bridgeByDate, overEntitlementWarning, hasBankHolidayData } = usePlanner()
+  const { state, dispatch, range, label, settings, activePerson, people, companies, editingCompany, editingCompanyIndex, viewCompany, yearView, summary, activeLabel, activeRange, companyRanges, bridges, bridgeByDate, overEntitlementWarning, hasBankHolidayData } = usePlanner()
   // Same breakpoint as the phone layout in App.css.
   const phone = useMediaQuery('(max-width: 600px)')
   const [exporting, setExporting] = useState(false)
@@ -84,6 +84,7 @@ export default function App() {
           tracksAllowance: p.person.tracksAllowance,
           summary: p.summary,
           warning: p.warning ?? undefined,
+          yearLabel: p.label !== label ? p.label : undefined,
         })),
       })
       await downloadCanvasAsPng(canvas, `annual-leave-${label.replace('/', '-')}.png`)
@@ -183,11 +184,11 @@ export default function App() {
 
       <div className="layout">
         {phone ? (
-          <PeopleBar people={people} companies={companies} editing={companyMode} variant="chips" dispatch={dispatch} />
+          <PeopleBar people={people} viewLabel={label} companies={companies} editing={companyMode} variant="chips" dispatch={dispatch} />
         ) : (
           <aside className="rail" aria-label="People, company days and bridge ideas">
-            <PeopleBar people={people} companies={companies} editing={companyMode} dispatch={dispatch} />
-            <CompaniesBar companies={companies} people={people.map((p) => p.person)} editingCompanyId={state.editingCompanyId} range={range} dispatch={dispatch} />
+            <PeopleBar people={people} viewLabel={label} companies={companies} editing={companyMode} dispatch={dispatch} />
+            <CompaniesBar companies={companies} people={people.map((p) => p.person)} editingCompanyId={state.editingCompanyId} ranges={companyRanges} dispatch={dispatch} />
             <BridgeSuggestions bridges={shownBridges} name={activePerson.name} onBook={bookBridge} />
           </aside>
         )}
@@ -197,7 +198,7 @@ export default function App() {
             summary={summary}
             name={activePerson.name}
             colour={activePerson.colour}
-            label={label}
+            label={activeLabel}
             allowanceDays={settings.allowanceDays}
             carryOverDays={settings.carryOverDays}
             warning={overEntitlementWarning}
@@ -286,8 +287,8 @@ export default function App() {
         activePerson={activePerson}
         people={people}
         companies={companies}
-        range={range}
-        label={label}
+        range={activeRange}
+        label={activeLabel}
         dispatch={dispatch}
         onExportJson={exportJson}
         onImportFile={(file) => void importJson(file)}

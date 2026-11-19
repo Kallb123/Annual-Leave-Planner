@@ -1,7 +1,7 @@
 import { addDays, daysInMonth, parseIso, toIso, type IsoDate } from './dates'
-import type { DateRange, Settings } from './types'
+import type { DateRange, LeaveYearStart } from './types'
 
-type StartSettings = Pick<Settings, 'leaveYearStartMonth' | 'leaveYearStartDay'>
+type StartSettings = LeaveYearStart
 
 /** The date a leave year beginning in `year` starts on. */
 export function leaveYearStartIn(year: number, settings: StartSettings): IsoDate {
@@ -23,6 +23,26 @@ export function leaveYearContaining(date: IsoDate, settings: StartSettings): Dat
   const { year } = parseIso(date)
   const startYear = date >= leaveYearStartIn(year, settings) ? year : year - 1
   return leaveYearStartingIn(startYear, settings)
+}
+
+/**
+ * The leave year `offset` years forward/back from the one containing `today`.
+ * Everyone's "this year" is the leave year they are in today, whatever its start date.
+ */
+export function leaveYearAtOffset(today: IsoDate, offset: number, settings: StartSettings): DateRange {
+  const current = leaveYearContaining(today, settings)
+  return leaveYearStartingIn(parseIso(current.start).year + offset, settings)
+}
+
+/** Every leave year (for this start date) that overlaps `range`, in order. */
+export function leaveYearsOverlapping(range: DateRange, settings: StartSettings): DateRange[] {
+  const out: DateRange[] = []
+  let year = leaveYearContaining(range.start, settings)
+  while (year.start <= range.end) {
+    out.push(year)
+    year = leaveYearStartingIn(parseIso(year.start).year + 1, settings)
+  }
+  return out
 }
 
 /** Human label, e.g. "2026" for a calendar year or "2026/27" otherwise. */

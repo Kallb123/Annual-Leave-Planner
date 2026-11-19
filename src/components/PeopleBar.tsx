@@ -14,6 +14,8 @@ const fmt = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(1))
 
 interface Props {
   people: PersonStatus[]
+  /** The leave-year label the calendar shows; a person on a different leave year is labelled with theirs. */
+  viewLabel: string
   companies: Company[]
   /** True while the calendar is editing a company's days, so no one is shown as selected. */
   editing?: boolean
@@ -26,13 +28,13 @@ interface Props {
  * Choose whose leave the calendar edits, and add someone. Shown even for one
  * person so the feature is discoverable.
  */
-export function PeopleBar({ people, companies, editing = false, variant = 'cards', dispatch }: Props) {
+export function PeopleBar({ people, viewLabel, companies, editing = false, variant = 'cards', dispatch }: Props) {
   const add = (name: string) => dispatch({ type: 'addPerson', id: newId('p'), name })
 
   if (variant === 'chips') {
     return (
       <div className="people-chips" role="group" aria-label="Booking for">
-        {people.map(({ person, active, summary }) => (
+        {people.map(({ person, active, summary, label }) => (
           <button
             key={person.id}
             type="button"
@@ -48,6 +50,7 @@ export function PeopleBar({ people, companies, editing = false, variant = 'cards
             ) : (
               <span className="person-chip-left num">{fmt(summary.booked)} marked</span>
             )}
+            {label !== viewLabel && <span className="person-chip-left num">{label}</span>}
           </button>
         ))}
         <InlineAddForm
@@ -80,8 +83,9 @@ export function PeopleBar({ people, companies, editing = false, variant = 'cards
         />
       </div>
       <ul className="person-cards">
-        {people.map(({ person, active, summary }) => {
+        {people.map(({ person, active, summary, label }) => {
           const company = companyOf(companies, person)
+          const ownYear = label !== viewLabel
           const negative = summary.remaining < 0
           const deducted = summary.bankHolidaysDeducted + summary.companyDaysDeducted
           return (
@@ -92,8 +96,8 @@ export function PeopleBar({ people, companies, editing = false, variant = 'cards
                 aria-pressed={active && !editing}
                 aria-label={
                   person.tracksAllowance
-                    ? `${person.name}, ${formatDays(summary.remaining)} left of ${formatDays(summary.entitlement)}`
-                    : `${person.name}, ${formatDays(summary.booked)} marked`
+                    ? `${person.name}, ${formatDays(summary.remaining)} left of ${formatDays(summary.entitlement)}${ownYear ? `, leave year ${label}` : ''}`
+                    : `${person.name}, ${formatDays(summary.booked)} marked${ownYear ? `, leave year ${label}` : ''}`
                 }
                 style={{ '--person-colour': person.colour } as CSSProperties}
                 onClick={() => dispatch({ type: 'selectPerson', id: person.id })}
@@ -111,12 +115,12 @@ export function PeopleBar({ people, companies, editing = false, variant = 'cards
                     {person.tracksAllowance ? (
                       <>
                         <span className={`person-card-remaining num${negative ? ' is-warn' : ''}`}>{fmt(summary.remaining)}</span>
-                        <span className="person-card-of">of {fmt(summary.entitlement)} left</span>
+                        <span className="person-card-of">of {fmt(summary.entitlement)} left{ownYear ? ` · ${label}` : ''}</span>
                       </>
                     ) : (
                       <>
                         <span className="person-card-remaining num">{fmt(summary.booked)}</span>
-                        <span className="person-card-of">days marked</span>
+                        <span className="person-card-of">days marked{ownYear ? ` · ${label}` : ''}</span>
                       </>
                     )}
                   </span>

@@ -14,11 +14,12 @@ import {
   PERSON_NAME_MAX,
   PERSON_SETTING_KEYS,
   REGIONS,
-    DAY_STYLES,
+  DAY_STYLES,
   type Company,
   type DayStyle,
   type LeaveEntries,
   type LeavePortion,
+  type LeaveYearStart,
   type Person,
   type PersonSettings,
   type Settings,
@@ -31,7 +32,10 @@ import { DEFAULT_COMPANY_COLOUR, PERSON_COLOURS, isHexColour, nextCompanyColour,
  * everything else (leave years, summaries, calendar cells) is derived.
  */
 export interface PlannerState {
-  /** Settings that apply to everyone: leave year start, region, bridge suggestions. */
+  /**
+   * Settings that apply to everyone: region, bridge suggestions, and the default leave
+   * year start (for people with no company, and copied onto new companies).
+   */
   shared: SharedSettings
   /** Never empty, in display order. */
   people: Person[]
@@ -62,6 +66,7 @@ export type PlannerAction =
   | { type: 'removeCompany'; id: string }
   | { type: 'setCompanyColour'; id: string; colour: string }
   | { type: 'setCompanyStyle'; id: string; style: DayStyle }
+  | { type: 'setCompanyLeaveYearStart'; id: string; month: number; day: number }
   | { type: 'selectCompany'; id: string }
   | { type: 'stopEditingCompany' }
   | { type: 'setPersonCompany'; personId: string; companyId: string | null }
@@ -105,6 +110,20 @@ export const MAX_COMPANIES = 20
 export function companyOf(companies: readonly Company[], person: Pick<Person, 'companyId'>): Company | undefined {
   return person.companyId === null ? undefined : companies.find((c) => c.id === person.companyId)
 }
+
+/** When a person's leave year starts: their company's start date, or the planner-wide default. */
+export function leaveYearStartFor(
+  shared: LeaveYearStart,
+  companies: readonly Company[],
+  person: Pick<Person, 'companyId'>,
+): LeaveYearStart {
+  return pickLeaveYearStart(companyOf(companies, person) ?? shared)
+}
+
+const pickLeaveYearStart = (s: LeaveYearStart): LeaveYearStart => ({
+  leaveYearStartMonth: s.leaveYearStartMonth,
+  leaveYearStartDay: s.leaveYearStartDay,
+})
 
 /** Company-day lookup for a person: their company's days, or none. */
 export function companyIndexFor(companies: readonly Company[], person: Pick<Person, 'companyId'>): CompanyDayIndex {
@@ -257,6 +276,7 @@ export function plannerReducer(state: PlannerState, action: PlannerAction): Plan
             name,
             colour: nextCompanyColour(state.companies.map((c) => c.colour)),
             style: 'fill',
+            ...pickLeaveYearStart(state.shared),
             days: [],
           },
         ],
@@ -285,6 +305,11 @@ export function plannerReducer(state: PlannerState, action: PlannerAction): Plan
     }
     case 'setCompanyStyle':
       return isDayStyle(action.style) ? updateCompany(state, action.id, (c) => ({ ...c, style: action.style })) : state
+    case 'setCompanyLeaveYearStart':
+      return updateCompany(state, action.id, (c) => ({
+        ...c,
+        ...sanitiseLeaveYearStart({ leaveYearStartMonth: action.month, leaveYearStartDay: action.day }, c),
+      }))
     case 'selectCompany':
       return state.companies.some((c) => c.id === action.id) ? { ...state, editingCompanyId: action.id } : state
     case 'stopEditingCompany':
@@ -336,7 +361,7 @@ export function plannerReducer(state: PlannerState, action: PlannerAction): Plan
 // ---------------------------------------------------------------------------
 
 export const STORAGE_KEY = 'annual-leave-planner'
-const SCHEMA_VERSION = 6
+const SCHEMA_VERSION = 7
 
 /** Id given to the person created from v1/v2 data or on first visit. */
 const DEFAULT_PERSON_ID = 'person-1'
@@ -356,16 +381,19 @@ const DEFAULT_COMPANY_ID = 'company-1'
  *   (same envelope as v4; missing fields default on load)
  * - v6: day styles: `style` and `tracksAllowance` on each person, `colour` and `style` on each company
  *   (same envelope; missing fields default on load, so older plans look exactly as before)
+ * - v7: each company has its own `leaveYearStartMonth` / `leaveYearStartDay`. `shared`'s start
+ *   date becomes the default for people with no company. Older plans copy `shared`'s start date
+ *   onto every company, so nobody's leave year changes.
  */
-interface StoredStateV6 {
-  version: 6
+interface StoredStateV7 {
+  version: 7
   shared: SharedSettings
   people: Person[]
   activePersonId: string
   companies: Company[]
 }
 
-export type StoredContent = Omit<StoredStateV6, 'version'>
+export type StoredContent = Omit<StoredStateV7, 'version'>
 
 function defaultPerson(): Person {
   return {
@@ -387,7 +415,7 @@ export function initialState(storage: Storage | undefined = safeLocalStorage()):
     shared: splitSettings(DEFAULT_SETTINGS).shared,
     people: [{ ...defaultPerson(), companyId: DEFAULT_COMPANY_ID }],
     activePersonId: DEFAULT_PERSON_ID,
-    companies: [legacyCompany([])],
+    companies: [legacyCompany([], DEFAULT_SETTINGS)],
     editingCompanyId: null,
     yearOffset: 0,
   }
@@ -403,7 +431,7 @@ export function hasSavedState(storage: Storage | undefined = safeLocalStorage())
 
 /** The versioned JSON envelope that is both stored and exported: exactly what `parsePlan` reads back. */
 export function serialisePlan(state: PlannerState): string {
-  const payload: StoredStateV6 = {
+  const payload: StoredStateV7 = {
     version: SCHEMA_VERSION,
     shared: state.shared,
     people: state.people,
@@ -486,10 +514,10 @@ export function migrateStored(parsed: unknown): StoredContent | null {
       people: [{ ...defaultPerson(), ...person, leave: sanitiseLeave(p.leave), companyId: DEFAULT_COMPANY_ID }],
       activePersonId: DEFAULT_PERSON_ID,
       // v1 had no company days, so `companyDays` is simply absent and becomes [].
-      companies: [legacyCompany(p.version === 1 ? [] : p.companyDays)],
+      companies: [legacyCompany(p.version === 1 ? [] : p.companyDays, shared)],
     }
   }
-  if (p.version !== 3 && p.version !== 4 && p.version !== 5 && p.version !== 6) return null
+  if (p.version !== 3 && p.version !== 4 && p.version !== 5 && p.version !== 6 && p.version !== 7) return null
   const shared = splitSettings(
     sanitiseSettings({ ...DEFAULT_SETTINGS, ...(asObject(p.shared) as Partial<Settings>) }),
   ).shared
@@ -504,10 +532,12 @@ export function migrateStored(parsed: unknown): StoredContent | null {
       shared,
       people: people.map((x) => ({ ...x, companyId: DEFAULT_COMPANY_ID })),
       activePersonId,
-      companies: [legacyCompany(p.companyDays)],
+      companies: [legacyCompany(p.companyDays, shared)],
     }
   }
-  const companies = sanitiseCompanies(p.companies)
+  // Before v7 the leave year was planner-wide: every company inherits it, so totals don't change.
+  // From v7 a company missing its start date (hand-edited file) also falls back to it.
+  const companies = sanitiseCompanies(p.companies, shared)
   return {
     shared,
     // `sanitisePeople` keeps companyId as read; drop any that no longer resolve.
@@ -518,17 +548,18 @@ export function migrateStored(parsed: unknown): StoredContent | null {
 }
 
 /** The single company that v1-v3 company days migrate into. */
-function legacyCompany(days: unknown): Company {
+function legacyCompany(days: unknown, start: LeaveYearStart): Company {
   return {
     id: DEFAULT_COMPANY_ID,
     name: DEFAULT_COMPANY_NAME,
     colour: DEFAULT_COMPANY_COLOUR,
     style: 'fill',
+    ...pickLeaveYearStart(start),
     days: sanitiseCompanyDays(days),
   }
 }
 
-function sanitiseCompanies(value: unknown): Company[] {
+function sanitiseCompanies(value: unknown, fallbackStart: LeaveYearStart): Company[] {
   const companies: Company[] = []
   const ids = new Set<string>()
   for (const raw of Array.isArray(value) ? value : []) {
@@ -542,6 +573,7 @@ function sanitiseCompanies(value: unknown): Company[] {
       name: cleanCompanyName(r.name) || `Company ${companies.length + 1}`,
       colour: isHexColour(r.colour) ? r.colour.toLowerCase() : DEFAULT_COMPANY_COLOUR,
       style: isDayStyle(r.style) ? r.style : 'fill',
+      ...sanitiseLeaveYearStart(r as Partial<LeaveYearStart>, fallbackStart),
       days: sanitiseCompanyDays(r.days),
     })
   }
@@ -612,8 +644,7 @@ export function sanitiseSettings(s: Settings, d: Settings = DEFAULT_SETTINGS): S
   return {
     allowanceDays: clamp(toHalf(num(s.allowanceDays, d.allowanceDays)), 0, 366),
     carryOverDays: clamp(toHalf(num(s.carryOverDays, d.carryOverDays)), 0, 366),
-    leaveYearStartMonth: clamp(Math.round(num(s.leaveYearStartMonth, d.leaveYearStartMonth)), 1, 12),
-    leaveYearStartDay: clamp(Math.round(num(s.leaveYearStartDay, d.leaveYearStartDay)), 1, 31),
+    ...sanitiseLeaveYearStart(s, d),
     region: REGIONS.some((r) => r.id === s.region) ? s.region : d.region,
     workingDays,
     workingDaysWeek2,
@@ -621,6 +652,14 @@ export function sanitiseSettings(s: Settings, d: Settings = DEFAULT_SETTINGS): S
     bankHolidaysDeducted: typeof s.bankHolidaysDeducted === 'boolean' ? s.bankHolidaysDeducted : d.bankHolidaysDeducted,
     showBridgeSuggestions:
       typeof s.showBridgeSuggestions === 'boolean' ? s.showBridgeSuggestions : d.showBridgeSuggestions,
+  }
+}
+
+/** Clamp a leave year start. Invalid values fall back to `d`. */
+export function sanitiseLeaveYearStart(s: Partial<LeaveYearStart>, d: LeaveYearStart): LeaveYearStart {
+  return {
+    leaveYearStartMonth: clamp(Math.round(num(s.leaveYearStartMonth, d.leaveYearStartMonth)), 1, 12),
+    leaveYearStartDay: clamp(Math.round(num(s.leaveYearStartDay, d.leaveYearStartDay)), 1, 31),
   }
 }
 

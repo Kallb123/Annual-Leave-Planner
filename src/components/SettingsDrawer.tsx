@@ -506,9 +506,9 @@ function PlanTab({ settings, people, companies, dispatch, onExportJson, onImport
       <section className="drawer-section" aria-labelledby="drawer-year-h">
         <div className="drawer-section-head">
           <h2 id="drawer-year-h" className="section-label">
-            Leave year
+            Default leave year
           </h2>
-          <p className="hint">Shared by everyone in this plan.</p>
+          <p className="hint">For people with no company, and for new companies. Each company sets its own under Companies, below.</p>
         </div>
         <fieldset className="field">
           <legend>Starts on</legend>

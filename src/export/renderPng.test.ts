@@ -70,6 +70,12 @@ describe('summaryParts', () => {
     expect(texts).toEqual(['Entitlement 25', 'Booked 4.5', 'Remaining 20.5'])
   })
 
+  it('leads with the person\'s own leave year when it differs from the calendar\'s', () => {
+    const texts = summaryParts({ summary, tracksAllowance: true, yearLabel: '2026/27' }, false).map((p) => p.text)
+    expect(texts).toEqual(['2026/27', 'Booked 4.5', 'Remaining 20.5'])
+    expect(summaryParts({ summary, tracksAllowance: false, yearLabel: '2026/27' }, false).map((p) => p.text)).toEqual(['2026/27', 'Marked 4.5'])
+  })
+
   it('shows only "Marked n" for someone who just marks dates', () => {
     expect(summaryParts({ summary, tracksAllowance: false }, true).map((p) => p.text)).toEqual(['Marked 4.5'])
     expect(summaryParts({ summary, tracksAllowance: false }, false).map((p) => p.text)).toEqual(['Marked 4.5'])

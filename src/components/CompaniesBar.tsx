@@ -11,8 +11,8 @@ interface Props {
   companies: Company[]
   people: Person[]
   editingCompanyId: string | null
-  /** The leave year being shown, for the per-company day counts. */
-  range: DateRange
+  /** Each company's own leave year (at the current year offset), for its day count. */
+  ranges: ReadonlyMap<string, DateRange>
   dispatch: (action: PlannerAction) => void
 }
 
@@ -20,10 +20,16 @@ interface Props {
  * Side-rail list of companies. "Edit days" puts the calendar into company mode
  * for that company; "Done" (or pressing it again) leaves it.
  */
-export function CompaniesBar({ companies, people, editingCompanyId, range, dispatch }: Props) {
+export function CompaniesBar({ companies, people, editingCompanyId, ranges, dispatch }: Props) {
   const counts = useMemo(
-    () => new Map(companies.map((c) => [c.id, countCompanyDays(c.days, range.start, range.end)])),
-    [companies, range.start, range.end],
+    () =>
+      new Map(
+        companies.map((c) => {
+          const r = ranges.get(c.id)
+          return [c.id, r ? countCompanyDays(c.days, r.start, r.end) : 0]
+        }),
+      ),
+    [companies, ranges],
   )
 
   return (
