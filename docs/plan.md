@@ -47,7 +47,7 @@ People with a fixed annual leave allowance want to see the whole leave year at a
 - [x] Warn when booked leave exceeds the entitlement (notice above the calendar, over-limit days marked on screen and in the PNG)
 - [x] "Bridge" suggestions: highlight days that join bank holidays to weekends
 - [x] Mobile layout pass: larger touch targets, a collapsible settings panel, one month per row and a simpler toolbar on phones
-- [ ] Deploy to production (Vercel or Cloudflare Pages) and add the URL to the README
+- [x] Deploy to production (Vercel or Cloudflare Pages) and add the URL to the README
 
 ### M2 – Export & sharing
 

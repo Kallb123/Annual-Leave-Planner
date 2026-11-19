@@ -1,5 +1,12 @@
 # Cloudflare (Workers static assets or Pages). Copied to dist/ by Vite. See docs/deployment.md.
 
+# Security headers on every response. See docs/deployment.md ("Security headers").
+/*
+  Content-Security-Policy: default-src 'self'; img-src 'self' blob: data:; style-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=(), usb=()
+
 # Always revalidate the entry points so new deploys are noticed.
 /
   Cache-Control: no-cache
