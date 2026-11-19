@@ -9,6 +9,7 @@ import { ChevronLeftIcon, ChevronRightIcon, DownloadIcon, LogoMark, SettingsIcon
 import { newId } from './components/newId'
 import { PeopleBar } from './components/PeopleBar'
 import { SettingsDrawer, type SettingsTab } from './components/SettingsDrawer'
+import { StretchSuggestion } from './components/StretchSuggestion'
 import { SummaryBar } from './components/SummaryBar'
 import { UpdateBanner } from './components/UpdateBanner'
 import { Legend, YearCalendar } from './components/YearCalendar'
@@ -34,7 +35,7 @@ function companyVars(colour: string | undefined): CSSProperties {
 }
 
 export default function App() {
-  const { state, dispatch, range, label, settings, activePerson, people, companies, editingCompany, editingCompanyIndex, viewCompany, yearView, exportFor, summary, activeLabel, activeRange, companyRanges, bridges, bridgeByDate, overEntitlementWarning, hasBankHolidayData } = usePlanner()
+  const { state, dispatch, range, label, settings, activePerson, people, companies, editingCompany, editingCompanyIndex, viewCompany, yearView, exportFor, summary, activeLabel, activeRange, companyRanges, bridges, bridgeByDate, longestStretch, today, overEntitlementWarning, hasBankHolidayData } = usePlanner()
   // Same breakpoint as the phone layout in App.css.
   const phone = useMediaQuery('(max-width: 600px)')
   const [exporting, setExporting] = useState(false)
@@ -70,6 +71,7 @@ export default function App() {
 
   const regionLabel = REGIONS.find((r) => r.id === settings.region)?.label ?? ''
   const shownBridges = companyMode ? [] : bridges
+  const shownStretch = companyMode ? null : longestStretch
   // Phones edit company days through a toggle: the company being edited, else the active person's, else the first.
   const toggleCompany = editingCompany ?? companyOf(companies, activePerson) ?? companies[0] ?? null
 
@@ -235,11 +237,12 @@ export default function App() {
         {phone ? (
           <PeopleBar people={people} viewLabel={label} companies={companies} editing={companyMode} variant="chips" dispatch={dispatch} />
         ) : (
-          <aside className="rail" aria-label="People, company days, imported calendars and bridge ideas">
+          <aside className="rail" aria-label="People, company days, imported calendars and suggestions">
             <PeopleBar people={people} viewLabel={label} companies={companies} editing={companyMode} dispatch={dispatch} />
             <CompaniesBar companies={companies} people={people.map((p) => p.person)} editingCompanyId={state.editingCompanyId} ranges={companyRanges} dispatch={dispatch} />
             <CalendarsBar calendars={state.calendars} range={range} onImportFile={(file) => void importCalendarFile(file)} dispatch={dispatch} />
             <BridgeSuggestions bridges={shownBridges} name={activePerson.name} onBook={bookBridge} />
+            <StretchSuggestion stretch={shownStretch} name={activePerson.name} today={today} />
           </aside>
         )}
 
@@ -258,6 +261,7 @@ export default function App() {
           />
 
           {phone && <BridgeSuggestions bridges={shownBridges} name={activePerson.name} onBook={bookBridge} compact />}
+          {phone && <StretchSuggestion stretch={shownStretch} name={activePerson.name} today={today} compact />}
 
           {!hasBankHolidayData && (
             <p className="notice" role="status">

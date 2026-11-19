@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useReducer } from 'react'
 import { bankHolidayIndex, coversRange } from '../domain/bankHolidays'
 import { companyDayIndex, NO_COMPANY_DAYS, type CompanyDayIndex } from '../domain/companyDays'
 import { findBridges, type Bridge } from '../domain/bridges'
+import { longestStretchWithoutWeekOff } from '../domain/stretches'
 import { buildYearView, type CalendarOverlaySource, type PersonLeaveSource, type YearView } from '../domain/calendar'
 import { calendarDayIndex } from '../domain/importedCalendars'
 import { todayIso } from '../domain/dates'
@@ -182,6 +183,15 @@ export function usePlanner() {
     [activeRange, today, settings, leave, holidays, activeCompanyDays, activePerson.tracksAllowance],
   )
 
+  // The longest gap between weeks off in the active person's leave year. Screen-only, like bridges.
+  const longestStretch = useMemo(
+    () =>
+      settings.showBridgeSuggestions && activePerson.tracksAllowance
+        ? longestStretchWithoutWeekOff({ range: activeRange, settings, leave, holidays, companyDays: activeCompanyDays })
+        : null,
+    [activeRange, settings, leave, holidays, activeCompanyDays, activePerson.tracksAllowance],
+  )
+
   /** The best-ranked suggestion covering each day (bridges never overlap, but be explicit). */
   const bridgeByDate = useMemo(() => {
     const map = new Map<string, Bridge>()
@@ -210,6 +220,8 @@ export function usePlanner() {
     companyRanges,
     bridges,
     bridgeByDate,
+    longestStretch,
+    today,
     overEntitlementWarning: activeStatus.warning,
     hasBankHolidayData: coversRange(range, settings.region),
   }
