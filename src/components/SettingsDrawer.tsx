@@ -358,12 +358,12 @@ function PeopleTab({ settings, activePerson, people, companies, range, label, di
             type="button"
             className="btn btn-danger drawer-danger-btn"
             onClick={() => {
-              if (confirm(`Remove ${name} and all of their leave?`)) {
+              if (confirm(`Remove ${name} and all of their ${activePerson.tracksAllowance ? 'leave' : 'dates'}?`)) {
                 dispatch({ type: 'removePerson', id: activePerson.id })
               }
             }}
           >
-            Remove {name} and their leave
+            Remove {name} and their {activePerson.tracksAllowance ? 'leave' : 'dates'}
           </button>
         )}
       </section>
