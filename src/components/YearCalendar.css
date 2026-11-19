@@ -17,8 +17,9 @@
 }
 
 .month-grid {
+  --day-gap: 3px;
   display: grid;
-  gap: 3px;
+  gap: var(--day-gap);
   user-select: none;
   -webkit-user-select: none;
 }
@@ -27,7 +28,7 @@
 .weekday-row {
   display: grid;
   grid-template-columns: repeat(7, minmax(0, 1fr));
-  gap: 3px;
+  gap: var(--day-gap);
 }
 
 .weekday {
@@ -71,9 +72,15 @@
 }
 
 .day--company-day {
-  background: var(--c-companyDay);
-  color: var(--c-companyDayText);
+  background: var(--company-fill, var(--c-companyDay));
+  color: var(--company-text, var(--c-companyDayText));
   font-weight: 600;
+}
+
+/* An outline-style company has no fill: the outline overlay carries the colour. */
+.day--company-day.day--company-outline {
+  background: transparent;
+  color: var(--c-text);
 }
 
 /* Leave: the background (full colour, tint or diagonal bands) is set inline. */
@@ -83,7 +90,41 @@
 
 .day-num {
   position: relative;
+  z-index: 1;
   pointer-events: none;
+}
+
+/* Outline overlay (a person or company drawn as an outline). --inset and --radius are set inline.
+   On an open side there is no border and the box reaches half the grid gap past the cell, so
+   neighbouring cells' outlines meet and read as one shape. */
+.day-outline {
+  position: absolute;
+  top: var(--inset);
+  bottom: var(--inset);
+  left: var(--inset);
+  right: var(--inset);
+  box-sizing: border-box;
+  border: 2px solid var(--outline-colour);
+  border-radius: var(--radius);
+  pointer-events: none;
+}
+
+.day-outline--half {
+  border-style: dashed;
+}
+
+.day-outline--open-left {
+  left: calc(var(--day-gap) / -2);
+  border-left-width: 0;
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+}
+
+.day-outline--open-right {
+  right: calc(var(--day-gap) / -2);
+  border-right-width: 0;
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
 }
 
 /* Several people, all full days: white on the colour bands (every preset passes AA with white). */
@@ -214,10 +255,14 @@ button.day:focus-visible {
     background: var(--c-background);
   }
 
+  .month-grid {
+    --day-gap: 4px;
+  }
+
   .month-grid,
   .week,
   .weekday-row {
-    gap: 4px;
+    gap: var(--day-gap);
   }
 
   .day {

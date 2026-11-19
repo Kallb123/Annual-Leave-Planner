@@ -4,7 +4,8 @@ import type { Company, CompanyDay, LeavePortion } from '../domain/types'
 import { nextPortion } from '../state/plannerState'
 import type { DayCell, MonthView, PersonLeave, YearView } from '../domain/calendar'
 import { bridgeSummary, type Bridge } from '../domain/bridges'
-import { halfDayTint, legendItems, textOn } from '../theme'
+import type { DayStyle } from '../domain/types'
+import { companyDayColours, halfDayTint, legendItems, textOn } from '../theme'
 import { CompanyDayPopover, type CompanyDayChoice } from './CompanyDayPopover'
 import './YearCalendar.css'
 
@@ -14,6 +15,8 @@ interface Props {
   activeColour: string
   /** Suggested bridge days (screen only; the PNG never draws these). */
   bridgeByDate?: ReadonlyMap<string, Bridge>
+  /** False for a person who just marks dates: no half days, so a drag marks or clears whole days. */
+  allowHalfDays?: boolean
   onToggleDay: (date: string) => void
   onSetRange: (start: string, end: string, portion: LeavePortion | undefined) => void
   /** Set while editing a company's days: clicks and drags open the company-day popover instead of booking leave. */
@@ -22,6 +25,12 @@ interface Props {
   companyDayAt?: (date: string) => CompanyDay | undefined
   onAssignCompanyDays?: (companyId: string, dates: string[], choice: CompanyDayChoice) => void
   onRemoveCompanyDays?: (companyId: string, dates: string[]) => void
+}
+
+/** CSS custom properties for the company-day tones derived from a company's colour. */
+function companyVars(colour: string) {
+  const c = companyDayColours(colour)
+  return { '--company-fill': c.fill, '--company-text': c.text, '--company-mark': c.mark }
 }
 
 const dateAt = (x: number, y: number): string | null =>
@@ -33,6 +42,7 @@ export function YearCalendar({
   view,
   activeColour,
   bridgeByDate,
+  allowHalfDays = true,
   onToggleDay,
   onSetRange,
   company = null,
@@ -55,7 +65,7 @@ export function YearCalendar({
     (d: string) => {
       const c = cells.get(d)
       if (!c || !c.inRange) return false
-      return companyMode || c.kind === 'working'
+      return companyMode || c.bookable
     },
     [cells, companyMode],
   )
@@ -100,7 +110,7 @@ export function YearCalendar({
     const start = (e.target as HTMLElement).closest<HTMLElement>('[data-date]')?.dataset.date
     if (!start || !isBookable(start)) return
     // Target for the whole drag: what a click on the first day would do.
-    const portion = companyMode ? undefined : nextPortion(cells.get(start)?.leave ?? undefined)
+    const portion = companyMode ? undefined : nextPortion(cells.get(start)?.leave ?? undefined, allowHalfDays)
     dragRef.current = { start, end: start }
 
     const move = (ev: globalThis.PointerEvent) => {
@@ -163,15 +173,20 @@ export function YearCalendar({
     anchor.current = date
   }
 
+  const yearStyle = {
+    '--person-colour': activeColour,
+    ...(view.company && companyVars(view.company.colour)),
+  } as CSSProperties
+
   return (
     <div
       className="year"
-      style={{ '--person-colour': activeColour } as CSSProperties}
+      style={yearStyle}
       onPointerDown={onPointerDown}
       onClick={onDayClick}
     >
       {view.months.map((m) => (
-        <Month key={`${m.year}-${m.month}`} month={m} selecting={selecting} bridgeByDate={bridgeByDate} companyMode={companyMode} />
+        <Month key={`${m.year}-${m.month}`} month={m} selecting={selecting} bridgeByDate={bridgeByDate} companyMode={companyMode} companyStyle={view.company?.style ?? 'fill'} companyColour={view.company?.colour ?? null} />
       ))}
       {company && popover && popoverAnchor && (
         <CompanyDayPopover
@@ -201,11 +216,15 @@ function Month({
   selecting,
   bridgeByDate,
   companyMode,
+  companyStyle,
+  companyColour,
 }: {
   month: MonthView
   selecting: Set<string> | null
   bridgeByDate?: ReadonlyMap<string, Bridge>
   companyMode: boolean
+  companyStyle: DayStyle
+  companyColour: string | null
 }) {
   return (
     <section className="month" aria-label={month.label}>
@@ -222,7 +241,7 @@ function Month({
           <div role="row" key={w} className="week">
             {week.map((cell, d) =>
               cell ? (
-                <Day key={cell.date} cell={cell} selecting={!!selecting?.has(cell.date)} bridge={bridgeByDate?.get(cell.date)} companyMode={companyMode} />
+                <Day key={cell.date} cell={cell} column={d} selecting={!!selecting?.has(cell.date)} bridge={bridgeByDate?.get(cell.date)} companyMode={companyMode} companyOutline={companyStyle === 'outline' ? companyColour : null} />
               ) : (
                 <span key={d} role="gridcell" className="day day--empty" />
               ),
@@ -234,11 +253,38 @@ function Month({
   )
 }
 
-function Day({ cell, selecting, bridge, companyMode }: { cell: DayCell; selecting: boolean; bridge?: Bridge; companyMode: boolean }) {
-  const bookable = cell.inRange && (companyMode || cell.kind === 'working')
+function Day({
+  cell,
+  column,
+  selecting,
+  bridge,
+  companyMode,
+  companyOutline,
+}: {
+  cell: DayCell
+  /** 0 (Monday) to 6 (Sunday): outlines never join across a week row. */
+  column: number
+  selecting: boolean
+  bridge?: Bridge
+  companyMode: boolean
+  /** The company colour when its days are drawn as an outline, else null. */
+  companyOutline: string | null
+}) {
+  const bookable = cell.inRange && (companyMode || cell.bookable)
+  const fillPeople = cell.people.filter((p) => p.style === 'fill')
+  // Outermost first: the company day, then each outline person.
+  const outlines: Outline[] = [
+    ...(companyOutline && cell.kind === 'company-day'
+      ? [{ key: 'company', colour: companyOutline, half: false, joinsPrev: cell.companyJoinsPrev, joinsNext: cell.companyJoinsNext }]
+      : []),
+    ...cell.people
+      .filter((p) => p.style === 'outline')
+      .map((p) => ({ key: p.personId, colour: p.colour, half: p.portion === 'half', joinsPrev: p.joinsPrev, joinsNext: p.joinsNext })),
+  ]
   const classes = [
     'day',
     `day--${cell.kind}`,
+    cell.kind === 'company-day' && companyOutline && 'day--company-outline',
     cell.people.length > 0 && 'day--has-leave',
     !cell.inRange && 'day--out-of-range',
     cell.isToday && 'day--today',
@@ -252,7 +298,7 @@ function Day({ cell, selecting, bridge, companyMode }: { cell: DayCell; selectin
   const description = [
     cell.holidayName,
     cell.companyDayName,
-    cell.people.length > 0 && cell.people.map((p) => `${p.name}: ${p.portion === 'half' ? 'half day' : 'annual leave'}`).join(', '),
+    cell.people.length > 0 && cell.people.map(personDescription).join(', '),
     cell.overLimit && 'over entitlement',
     bridge && `Suggested: ${bridgeSummary(bridge).charAt(0).toLowerCase()}${bridgeSummary(bridge).slice(1)}`,
   ]
@@ -269,13 +315,51 @@ function Day({ cell, selecting, bridge, companyMode }: { cell: DayCell; selectin
       aria-label={`${cell.date}${description ? ` – ${description}` : ''}`}
       aria-pressed={bookable ? (companyMode ? cell.companyDay !== null : cell.leave !== null) : undefined}
       data-date={cell.date}
-      style={leaveStyle(cell.people)}
+      style={leaveStyle(fillPeople)}
     >
-      <span className={numClass(cell.people)}>{cell.day}</span>
+      <OutlineLayers outlines={outlines} column={column} />
+      <span className={numClass(fillPeople)}>{cell.day}</span>
     </button>
   )
 }
 
+const personDescription = (p: PersonLeave) =>
+  p.tracksAllowance ? `${p.name}: ${p.portion === 'half' ? 'half day' : 'annual leave'}` : p.portion === 'half' ? `${p.name} (half day)` : p.name
+
+interface Outline {
+  key: string
+  colour: string
+  half: boolean
+  joinsPrev: boolean
+  joinsNext: boolean
+}
+
+/** Nested outline layers drawn inside the cell, open on joined sides so a run reads as one shape. */
+function OutlineLayers({ outlines, column }: { outlines: Outline[]; column: number }) {
+  return outlines.map((o, i) => {
+    const left = o.joinsPrev && column > 0
+    const right = o.joinsNext && column < 6
+    const inset = i * OUTLINE_STEP
+    const radius = Math.max(CELL_RADIUS - inset, 0)
+    return (
+      <span
+        key={o.key}
+        aria-hidden="true"
+        className={`day-outline${o.half ? ' day-outline--half' : ''}${left ? ' day-outline--open-left' : ''}${right ? ' day-outline--open-right' : ''}`}
+        style={
+          {
+            '--outline-colour': o.colour,
+            '--inset': `${inset}px`,
+            '--radius': `${radius}px`,
+          } as CSSProperties
+        }
+      />
+    )
+  })
+}
+
+const OUTLINE_STEP = 3
+const CELL_RADIUS = 8
 const HALF_TINT = 0.2
 
 const personFill = (p: PersonLeave) => (p.portion === 'half' ? halfDayTint(p.colour, HALF_TINT) : p.colour)
@@ -305,16 +389,19 @@ export function Legend({
   people,
   activeColour,
   showBridge = false,
+  company = null,
 }: {
-  people: { id: string; name: string; colour: string }[]
+  people: { id: string; name: string; colour: string; style: DayStyle }[]
   activeColour: string
   showBridge?: boolean
+  /** The company whose days are shown; its colour and style set the "Company day" swatch. */
+  company?: { name: string; colour: string; style: DayStyle } | null
 }) {
   return (
     <ul className="legend" aria-label="Key">
       {people.map((p) => (
         <li key={p.id}>
-          <span className="swatch" style={{ background: p.colour }} />
+          <span className="swatch" style={swatchStyle(p.colour, p.style)} />
           {p.name}
         </li>
       ))}
@@ -327,7 +414,16 @@ export function Legend({
       </li>
       {legendItems.map((item) => (
         <li key={item.key}>
-          <span className="swatch" style={{ background: `var(--c-${item.key})` }} />
+          <span
+            className="swatch"
+            style={
+              item.key === 'companyDay' && company
+                ? company.style === 'outline'
+                  ? swatchStyle(company.colour, 'outline')
+                  : { background: companyDayColours(company.colour).fill }
+                : { background: `var(--c-${item.key})` }
+            }
+          />
           {item.label}
         </li>
       ))}
@@ -345,3 +441,7 @@ export function Legend({
     </ul>
   )
 }
+
+/** A legend swatch: solid for a filled style, a transparent inset border for an outline. */
+const swatchStyle = (colour: string, style: DayStyle): CSSProperties =>
+  style === 'outline' ? { background: 'transparent', boxShadow: `inset 0 0 0 2px ${colour}` } : { background: colour }
