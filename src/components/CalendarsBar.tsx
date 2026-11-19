@@ -2,20 +2,25 @@ import { useMemo, useRef } from 'react'
 import { countCalendarDays } from '../domain/importedCalendars'
 import type { DateRange, ImportedCalendar } from '../domain/types'
 import type { PlannerAction } from '../state/plannerState'
+import { schoolHolidayAreas } from '../domain/schoolHolidays'
 import { plural } from './calendarFormat'
 import { EyeIcon, EyeOffIcon, PlusIcon } from './Icons'
 import { CompanyMark } from './StyleControls'
+
+const HAS_SCHOOL_HOLIDAYS = schoolHolidayAreas().length > 0
 
 interface Props {
   calendars: ImportedCalendar[]
   /** The calendar's leave year being viewed, for each calendar's day count. */
   range: DateRange
   onImportFile: (file: File) => void
+  /** Opens the school holidays picker. */
+  onAddSchoolHolidays: () => void
   dispatch: (action: PlannerAction) => void
 }
 
 /** Side-rail list of imported calendars (e.g. school holidays), each with a show/hide toggle. */
-export function CalendarsBar({ calendars, range, onImportFile, dispatch }: Props) {
+export function CalendarsBar({ calendars, range, onImportFile, onAddSchoolHolidays, dispatch }: Props) {
   const fileRef = useRef<HTMLInputElement>(null)
   const counts = useMemo(
     () => new Map(calendars.map((c) => [c.id, countCalendarDays(c.events, range.start, range.end)])),
@@ -69,6 +74,11 @@ export function CalendarsBar({ calendars, range, onImportFile, dispatch }: Props
             </li>
           ))}
         </ul>
+      )}
+      {HAS_SCHOOL_HOLIDAYS && (
+        <button type="button" className="btn btn-link school-holidays-link" onClick={onAddSchoolHolidays}>
+          Add school holidays for your area
+        </button>
       )}
     </section>
   )

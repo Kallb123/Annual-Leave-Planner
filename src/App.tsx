@@ -2,6 +2,7 @@ import { useCallback, useState, type CSSProperties } from 'react'
 import { BridgeSuggestions } from './components/BridgeSuggestions'
 import { CalendarImportDialog, type CalendarImport, type CalendarImportChoice } from './components/CalendarImportDialog'
 import { CalendarsBar } from './components/CalendarsBar'
+import { SchoolHolidaysDialog } from './components/SchoolHolidaysDialog'
 import { CompaniesBar, ModeToggle } from './components/CompaniesBar'
 import { ExportDialog } from './components/ExportDialog'
 import type { CompanyDayChoice } from './components/CompanyDayPopover'
@@ -18,6 +19,7 @@ import { formatBridgeDates } from './domain/bridges'
 import { formatMonthSpan, monthSpanSlug, monthsOfRange, type MonthSpan } from './domain/exportRange'
 import { addDays, todayIso } from './domain/dates'
 import { IcsFormatError, parseIcs } from './domain/ics'
+import { schoolHolidayImport, type SchoolHolidayArea } from './domain/schoolHolidays'
 import { MAX_CALENDARS, MAX_CALENDAR_EVENTS, REGIONS, type LeavePortion } from './domain/types'
 import { downloadCanvasAsPng, downloadJson } from './export/download'
 import { loadExportFonts, renderYearToCanvas } from './export/renderPng'
@@ -42,6 +44,7 @@ export default function App() {
   const [exportOpen, setExportOpen] = useState(false)
   const [importError, setImportError] = useState<string | null>(null)
   const [calendarImport, setCalendarImport] = useState<CalendarImport | null>(null)
+  const [schoolPickerOpen, setSchoolPickerOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [settingsTab, setSettingsTab] = useState<SettingsTab>('people')
 
@@ -121,6 +124,22 @@ export default function App() {
       const message = e instanceof IcsFormatError ? e.message : 'That file couldn’t be read.'
       setCalendarImport({ fileName: file.name, error: message })
     }
+  }
+
+  function pickSchoolArea(area: SchoolHolidayArea) {
+    setSchoolPickerOpen(false)
+    const fileName = `${area.id}.ics`
+    if (state.calendars.length >= MAX_CALENDARS) {
+      setCalendarImport({ fileName, error: `You can import up to ${MAX_CALENDARS} calendars. Remove one to add another.` })
+      return
+    }
+    // Start of the current month: the current holiday stays, past ones are left out.
+    const from = `${todayIso().slice(0, 7)}-01`
+    setCalendarImport({
+      fileName,
+      result: schoolHolidayImport(area, from),
+      source: { label: area.authority, url: area.source, checked: area.checked },
+    })
   }
 
   function addImportedCalendar(choice: CalendarImportChoice) {
@@ -226,6 +245,9 @@ export default function App() {
         onClose={() => setExportOpen(false)}
       />
 
+      {/* Before the import dialog, so picking an area closes this one before the preview opens. */}
+      <SchoolHolidaysDialog open={schoolPickerOpen} onPick={pickSchoolArea} onClose={() => setSchoolPickerOpen(false)} />
+
       <CalendarImportDialog
         data={calendarImport}
         defaultColour={nextCalendarColour(state.calendars.map((c) => c.colour))}
@@ -240,7 +262,13 @@ export default function App() {
           <aside className="rail" aria-label="People, company days, imported calendars and suggestions">
             <PeopleBar people={people} viewLabel={label} companies={companies} editing={companyMode} dispatch={dispatch} />
             <CompaniesBar companies={companies} people={people.map((p) => p.person)} editingCompanyId={state.editingCompanyId} ranges={companyRanges} dispatch={dispatch} />
-            <CalendarsBar calendars={state.calendars} range={range} onImportFile={(file) => void importCalendarFile(file)} dispatch={dispatch} />
+            <CalendarsBar
+              calendars={state.calendars}
+              range={range}
+              onImportFile={(file) => void importCalendarFile(file)}
+              onAddSchoolHolidays={() => setSchoolPickerOpen(true)}
+              dispatch={dispatch}
+            />
             <BridgeSuggestions bridges={shownBridges} name={activePerson.name} onBook={bookBridge} />
             <StretchSuggestion stretch={shownStretch} name={activePerson.name} today={today} />
           </aside>
@@ -344,6 +372,7 @@ export default function App() {
         companies={companies}
         calendars={state.calendars}
         onImportCalendarFile={(file) => void importCalendarFile(file)}
+        onAddSchoolHolidays={() => setSchoolPickerOpen(true)}
         range={activeRange}
         label={activeLabel}
         dispatch={dispatch}

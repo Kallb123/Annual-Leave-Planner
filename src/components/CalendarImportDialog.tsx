@@ -3,13 +3,23 @@ import type { IcsParseResult } from '../domain/ics'
 import { CALENDAR_NAME_MAX, type DayStyle } from '../domain/types'
 import { CALENDAR_COLOURS, CALENDAR_COLOUR_NAMES } from '../theme'
 import { describeEventDates, plural } from './calendarFormat'
+import { MONTH_NAMES, parseIso } from '../domain/dates'
 import { ColourField, StyleField } from './StyleControls'
 import './CalendarImportDialog.css'
 
 /** What App holds while the import dialog is open: either a parsed file or a reason it couldn't be read. */
 export type CalendarImport =
-  | { fileName: string; result: IcsParseResult; error?: undefined }
-  | { fileName: string; error: string; result?: undefined }
+  | { fileName: string; result: IcsParseResult; error?: undefined; source?: CalendarImportSource }
+  | { fileName: string; error: string; result?: undefined; source?: undefined }
+
+/** Where bundled dates (rather than a file) came from; shown in place of the file name. */
+export interface CalendarImportSource {
+  /** e.g. "Sheffield City Council". */
+  label: string
+  url: string
+  /** When the dates were last checked against `url`. */
+  checked: string
+}
 
 export interface CalendarImportChoice {
   name: string
@@ -84,7 +94,7 @@ export function CalendarImportDialog({ data, defaultColour, onImport, onClose }:
 }
 
 function ImportForm({ titleId, data, defaultColour, onImport, onClose }: Omit<Props, 'data'> & { titleId: string; data: CalendarImport }) {
-  const { fileName, result, error } = data
+  const { fileName, result, error, source } = data
   const events = useMemo(() => result?.events ?? [], [result])
   const [name, setName] = useState(() =>
     (result?.calendarName?.trim() || fileName.replace(/\.ics$/i, '')).slice(0, CALENDAR_NAME_MAX),
@@ -129,6 +139,7 @@ function ImportForm({ titleId, data, defaultColour, onImport, onClose }: Omit<Pr
   }
 
   const notes: string[] = []
+  if (source && events.length === 0) notes.push('There are no upcoming dates for this area yet.')
   if (result.skipped > 0) notes.push(`${plural(result.skipped, 'event')} couldn’t be read and ${result.skipped === 1 ? 'was' : 'were'} left out.`)
   if (result.unsupportedRepeats > 0)
     notes.push(`${plural(result.unsupportedRepeats, 'repeating event')} use${result.unsupportedRepeats === 1 ? 's' : ''} a repeat pattern we don’t support, so only the first date of ${result.unsupportedRepeats === 1 ? 'it is' : 'each are'} included.`)
@@ -138,9 +149,19 @@ function ImportForm({ titleId, data, defaultColour, onImport, onClose }: Omit<Pr
     <form className="export-sheet import-sheet" onSubmit={onSubmit} noValidate>
       <div>
         <h1 id={titleId} className="export-title">
-          Import calendar
+          {source ? 'Add school holidays' : 'Import calendar'}
         </h1>
-        <p className="import-file">{fileName}</p>
+        {source ? (
+          <p className="import-file">
+            Dates from{' '}
+            <a className="import-source" href={source.url} target="_blank" rel="noreferrer">
+              {source.label}
+            </a>
+            , checked {formatChecked(source.checked)}.
+          </p>
+        ) : (
+          <p className="import-file">{fileName}</p>
+        )}
       </div>
 
       <div className="import-fields">
@@ -159,7 +180,7 @@ function ImportForm({ titleId, data, defaultColour, onImport, onClose }: Omit<Pr
       ))}
 
       {events.length === 0 ? (
-        <p className="hint import-empty">No events with dates were found in this file.</p>
+        source ? null : <p className="hint import-empty">No events with dates were found in this file.</p>
       ) : (
         <div className="import-events">
           <div className="import-events-head">
@@ -201,4 +222,10 @@ function ImportForm({ titleId, data, defaultColour, onImport, onClose }: Omit<Pr
       </div>
     </form>
   )
+}
+
+/** "19 November 2026". */
+function formatChecked(date: string): string {
+  const { day, month, year } = parseIso(date)
+  return `${day} ${MONTH_NAMES[month - 1]} ${year}`
 }

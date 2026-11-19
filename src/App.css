@@ -816,3 +816,7 @@
 .rail-tile--dim .rail-tile-title {
   opacity: 0.5;
 }
+
+.school-holidays-link {
+  align-self: flex-start;
+}
