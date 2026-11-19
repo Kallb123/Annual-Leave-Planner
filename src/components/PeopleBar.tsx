@@ -1,12 +1,14 @@
 import type { CSSProperties } from 'react'
 import { formatDays } from '../domain/allowance'
-import { PERSON_NAME_MAX, type Company } from '../domain/types'
+import { PERSON_NAME_MAX, type Company, type DayStyle } from '../domain/types'
 import { companyOf, type PlannerAction } from '../state/plannerState'
 import type { PersonStatus } from '../state/usePlanner'
 import { PlusIcon } from './Icons'
 import { InlineAddForm } from './InlineAddForm'
 import { newId } from './newId'
 import { share, workPatternLabel } from './format'
+
+const dotClass = (style: DayStyle) => `person-dot${style === 'outline' ? ' person-dot--outline' : ''}`
 
 const fmt = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(1))
 
@@ -39,9 +41,13 @@ export function PeopleBar({ people, companies, editing = false, variant = 'cards
             style={{ '--person-colour': person.colour } as CSSProperties}
             onClick={() => dispatch({ type: 'selectPerson', id: person.id })}
           >
-            <span className="person-dot" aria-hidden="true" />
+            <span className={dotClass(person.style)} aria-hidden="true" />
             <span className="person-chip-name">{person.name}</span>
-            <span className={`person-chip-left num${summary.remaining < 0 ? ' is-warn' : ''}`}>{fmt(summary.remaining)} left</span>
+            {person.tracksAllowance ? (
+              <span className={`person-chip-left num${summary.remaining < 0 ? ' is-warn' : ''}`}>{fmt(summary.remaining)} left</span>
+            ) : (
+              <span className="person-chip-left num">{fmt(summary.booked)} marked</span>
+            )}
           </button>
         ))}
         <InlineAddForm
@@ -84,28 +90,43 @@ export function PeopleBar({ people, companies, editing = false, variant = 'cards
                 type="button"
                 className="person-card"
                 aria-pressed={active && !editing}
-                aria-label={`${person.name}, ${formatDays(summary.remaining)} left of ${formatDays(summary.entitlement)}`}
+                aria-label={
+                  person.tracksAllowance
+                    ? `${person.name}, ${formatDays(summary.remaining)} left of ${formatDays(summary.entitlement)}`
+                    : `${person.name}, ${formatDays(summary.booked)} marked`
+                }
                 style={{ '--person-colour': person.colour } as CSSProperties}
                 onClick={() => dispatch({ type: 'selectPerson', id: person.id })}
               >
                 <span className="person-card-top">
-                  <span className="person-dot" aria-hidden="true" />
+                  <span className={dotClass(person.style)} aria-hidden="true" />
                   <span className="person-card-who">
                     <span className="person-card-name">{person.name}</span>
                     <span className="person-card-meta">
-                      {workPatternLabel(person)}
-                      {company ? ` · ${company.name}` : ''}
+                      {person.tracksAllowance ? workPatternLabel(person) : 'Marks dates'}
+                      {person.tracksAllowance && company ? ` · ${company.name}` : ''}
                     </span>
                   </span>
                   <span className="person-card-left">
-                    <span className={`person-card-remaining num${negative ? ' is-warn' : ''}`}>{fmt(summary.remaining)}</span>
-                    <span className="person-card-of">of {fmt(summary.entitlement)} left</span>
+                    {person.tracksAllowance ? (
+                      <>
+                        <span className={`person-card-remaining num${negative ? ' is-warn' : ''}`}>{fmt(summary.remaining)}</span>
+                        <span className="person-card-of">of {fmt(summary.entitlement)} left</span>
+                      </>
+                    ) : (
+                      <>
+                        <span className="person-card-remaining num">{fmt(summary.booked)}</span>
+                        <span className="person-card-of">days marked</span>
+                      </>
+                    )}
                   </span>
                 </span>
-                <span className="usage-bar" aria-hidden="true">
-                  <span style={{ width: share(summary.booked, summary.entitlement), background: person.colour }} />
-                  <span className="usage-bar-deducted" style={{ width: share(deducted, summary.entitlement) }} />
-                </span>
+                {person.tracksAllowance && (
+                  <span className="usage-bar" aria-hidden="true">
+                    <span style={{ width: share(summary.booked, summary.entitlement), background: person.colour }} />
+                    <span className="usage-bar-deducted" style={{ width: share(deducted, summary.entitlement) }} />
+                  </span>
+                )}
               </button>
             </li>
           )

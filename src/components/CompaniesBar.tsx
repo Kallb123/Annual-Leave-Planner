@@ -5,6 +5,7 @@ import type { PlannerAction } from '../state/plannerState'
 import { PlusIcon } from './Icons'
 import { InlineAddForm } from './InlineAddForm'
 import { newId } from './newId'
+import { CompanyMark } from './StyleControls'
 
 interface Props {
   companies: Company[]
@@ -50,7 +51,7 @@ export function CompaniesBar({ companies, people, editingCompanyId, range, dispa
             const editing = company.id === editingCompanyId
             return (
               <li key={company.id} className="rail-tile">
-                <span className="company-mark" aria-hidden="true" />
+                <CompanyMark company={company} />
                 <span className="rail-tile-text">
                   <span className="rail-tile-title">{company.name}</span>
                   <span className="rail-tile-meta">

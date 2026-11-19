@@ -2,7 +2,9 @@ import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { MONTH_NAMES, parseIso } from '../domain/dates'
 import { COMPANY_NAME_MAX, type Company, type CompanyDay, type Person } from '../domain/types'
 import { companyOf, type PlannerAction } from '../state/plannerState'
+import { COMPANY_COLOURS, COMPANY_COLOUR_NAMES } from '../theme'
 import { newId } from './newId'
+import { ColourField, StyleField, CompanyMark } from './StyleControls'
 
 interface Props {
   companies: Company[]
@@ -132,7 +134,7 @@ function CompanyBlock({
   return (
     <div className="company-block">
       <div className="company-block-head">
-        <span className="company-mark" aria-hidden="true" />
+        <CompanyMark company={company} />
         <div className="company-block-main">
           <input
             type="text"
@@ -166,6 +168,21 @@ function CompanyBlock({
         >
           Remove
         </button>
+      </div>
+      <div className="company-style-fields">
+        <ColourField
+          colours={COMPANY_COLOURS}
+          names={COMPANY_COLOUR_NAMES}
+          value={company.colour}
+          onChange={(colour) => dispatch({ type: 'setCompanyColour', id: company.id, colour })}
+        />
+        <StyleField
+          legend="Style"
+          colour={company.colour}
+          value={company.style}
+          hint="Outline suits dates that need cover, such as school holidays."
+          onChange={(style) => dispatch({ type: 'setCompanyStyle', id: company.id, style })}
+        />
       </div>
       {company.days.length === 0 ? (
         <p className="hint company-empty">No company days.</p>

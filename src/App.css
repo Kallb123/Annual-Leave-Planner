@@ -232,6 +232,11 @@
   background: var(--person-colour);
 }
 
+.person-dot--outline {
+  background: transparent;
+  box-shadow: inset 0 0 0 2px var(--person-colour);
+}
+
 .person-card-who {
   display: flex;
   flex-direction: column;
@@ -292,7 +297,7 @@
 }
 
 .usage-bar-deducted {
-  background: var(--c-companyDayMark);
+  background: var(--company-mark, var(--c-companyDayMark));
 }
 
 .usage-bar--large {
@@ -322,8 +327,13 @@
   width: 12px;
   height: 12px;
   border-radius: 4px;
-  background: var(--c-companyDay);
-  box-shadow: inset 0 0 0 1px var(--c-companyDayMark);
+  background: var(--company-fill, var(--c-companyDay));
+  box-shadow: inset 0 0 0 1px var(--company-mark, var(--c-companyDayMark));
+}
+
+.company-mark--outline {
+  background: transparent;
+  box-shadow: inset 0 0 0 2px var(--company-colour);
 }
 
 .rail-tile-text {
@@ -496,8 +506,8 @@
 }
 
 .mode-pill--company {
-  background: var(--c-companyDay);
-  color: var(--c-companyDayText);
+  background: var(--company-fill, var(--c-companyDay));
+  color: var(--company-text, var(--c-companyDayText));
 }
 
 .mode-pill-dot {
@@ -786,7 +796,7 @@
 
   .hint-bar-mark--company {
     border-radius: 3px;
-    background: var(--c-companyDayMark);
+    background: var(--company-mark, var(--c-companyDayMark));
   }
 }
 

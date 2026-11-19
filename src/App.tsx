@@ -20,6 +20,13 @@ import { companyOf, describePlan, parsePlan, serialisePlan } from './state/plann
 import { usePlanner } from './state/usePlanner'
 import './App.css'
 
+/** Company tones for the mode pill, hint bar and usage bar (CSS falls back to the default palette). */
+function companyVars(colour: string | undefined): CSSProperties {
+  if (!colour) return {}
+  const { fill, text, mark } = companyDayColours(colour)
+  return { '--company-fill': fill, '--company-text': text, '--company-mark': mark } as CSSProperties
+}
+
 export default function App() {
   const { state, dispatch, range, label, settings, activePerson, people, companies, editingCompany, editingCompanyIndex, viewCompany, yearView, summary, bridges, bridgeByDate, overEntitlementWarning, hasBankHolidayData } = usePlanner()
   // Same breakpoint as the phone layout in App.css.
@@ -118,7 +125,7 @@ export default function App() {
     : `Click a day to add, change or delete a company day; it applies to everyone at ${editingCompany?.name ?? 'this company'}. Drag or shift-click for a range.`
 
   return (
-    <div className={`app${phone ? ' app--phone' : ''}`} style={{ '--person-colour': activePerson.colour, ...(markColour && { '--company-mark': companyDayColours(markColour).mark }) } as CSSProperties}>
+    <div className={`app${phone ? ' app--phone' : ''}`} style={{ '--person-colour': activePerson.colour, ...companyVars(markColour) } as CSSProperties}>
       <header className="app-header">
         <div className="brand">
           <LogoMark />
