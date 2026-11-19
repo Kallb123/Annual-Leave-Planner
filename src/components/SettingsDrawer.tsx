@@ -37,6 +37,8 @@ export interface SettingsDrawerProps {
   companies: Company[]
   calendars: ImportedCalendar[]
   onImportCalendarFile: (file: File) => void
+  /** Opens the school holidays picker. */
+  onAddSchoolHolidays: () => void
   /** The leave year being shown (for "Clear X's leave" and company day counts). */
   range: DateRange
   /** The leave year's label, e.g. "2026" or "2026/27". */
@@ -499,7 +501,7 @@ function SwitchRow({
 
 /* --- Plan tab -------------------------------------------------------------- */
 
-function PlanTab({ settings, people, companies, calendars, onImportCalendarFile, dispatch, onExportJson, onImportFile, importError }: SettingsDrawerProps) {
+function PlanTab({ settings, people, companies, calendars, onImportCalendarFile, onAddSchoolHolidays, dispatch, onExportJson, onImportFile, importError }: SettingsDrawerProps) {
   const update = (patch: Partial<Settings>) => dispatch({ type: 'updateSettings', patch })
   // Leap years don't matter for picking a reset day; 2001 is a non-leap year, so cap Feb at 28.
   const maxStartDay = daysInMonth(2001, settings.leaveYearStartMonth)
@@ -574,7 +576,7 @@ function PlanTab({ settings, people, companies, calendars, onImportCalendarFile,
       </section>
 
       <section className="drawer-section drawer-divided" aria-labelledby="calendars-section-heading">
-        <CalendarsSection calendars={calendars} onImportFile={onImportCalendarFile} dispatch={dispatch} />
+        <CalendarsSection calendars={calendars} onImportFile={onImportCalendarFile} onAddSchoolHolidays={onAddSchoolHolidays} dispatch={dispatch} />
       </section>
 
       <section className="drawer-section drawer-divided" aria-labelledby="drawer-backup-h">

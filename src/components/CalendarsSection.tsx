@@ -2,17 +2,22 @@ import { useRef, useState } from 'react'
 import { CALENDAR_NAME_MAX, type ImportedCalendar } from '../domain/types'
 import type { PlannerAction } from '../state/plannerState'
 import { CALENDAR_COLOURS, CALENDAR_COLOUR_NAMES } from '../theme'
+import { schoolHolidayAreas } from '../domain/schoolHolidays'
 import { describeEventDates, plural } from './calendarFormat'
 import { PlusIcon } from './Icons'
 import { ColourField, CompanyMark, StyleField } from './StyleControls'
 
+const HAS_SCHOOL_HOLIDAYS = schoolHolidayAreas().length > 0
+
 interface Props {
   calendars: ImportedCalendar[]
   onImportFile: (file: File) => void
+  /** Opens the school holidays picker. */
+  onAddSchoolHolidays: () => void
   dispatch: (action: PlannerAction) => void
 }
 
-export function CalendarsSection({ calendars, onImportFile, dispatch }: Props) {
+export function CalendarsSection({ calendars, onImportFile, onAddSchoolHolidays, dispatch }: Props) {
   const fileRef = useRef<HTMLInputElement>(null)
   return (
     <div className="company-section">
@@ -45,6 +50,11 @@ export function CalendarsSection({ calendars, onImportFile, dispatch }: Props) {
             <CalendarBlock key={calendar.id} calendar={calendar} dispatch={dispatch} />
           ))}
         </div>
+      )}
+      {HAS_SCHOOL_HOLIDAYS && (
+        <button type="button" className="btn btn-link school-holidays-link" onClick={onAddSchoolHolidays}>
+          Add school holidays for your area
+        </button>
       )}
       <p className="hint">Imported dates are for information only. They never change anyone’s allowance.</p>
     </div>
