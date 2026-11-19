@@ -204,11 +204,11 @@ function* occurrenceStarts(start: IsoDate, rule: RepeatRule, repeatUntil: IsoDat
       const y = year + Math.floor(totalMonths / 12)
       const m = (totalMonths % 12) + 1
       if (y > 9999) return
-      if (limit !== null && toIso(y, m, 1) > limit) return
+      if (limit !== null && toIso(y, m, 1) > limit && produced > 0) return
       candidate = day <= daysInMonth(y, m) ? toIso(y, m, day) : null
     }
     if (candidate === null) continue
-    if (limit !== null && candidate > limit) return
+    if (limit !== null && candidate > limit && produced > 0) return
     yield candidate
     produced++
     if (rule.count !== null && produced >= rule.count) return
